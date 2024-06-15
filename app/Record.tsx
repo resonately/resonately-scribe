@@ -14,12 +14,31 @@ import WavyPattern from '../components/WavyPattern';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
 import LogoutChecker from './LogoutChecker';
+import * as TaskManager from 'expo-task-manager';
+import * as BackgroundFetch from 'expo-background-fetch';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 type RootStackParamList = {
   Record: undefined;
   LoginScreen: undefined;
 };
+
+
+const BACKGROUND_FETCH_TASK = 'UPLOAD_AUDIO_IN_BACKGROUND';
+
+// 1. Define the task by providing a name and the function that should be executed
+// Note: This needs to be called in the global scope (e.g outside of your React components)
+TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
+  const now = Date.now();
+
+  console.log(`Got background fetch call at date: ${new Date(now).toISOString()}`);
+
+  // Here, start your processUploadQueue
+
+  // Be sure to return the successful result type!
+  return BackgroundFetch.BackgroundFetchResult.NewData;
+});
 
 const AudioChunkUpload = () => {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -61,6 +80,24 @@ const AudioChunkUpload = () => {
       unsubscribe();
     };
   }, []);
+
+  // 2. Register the task at some point in your app by providing the same name,
+  // and some configuration options for how the background fetch should behave
+  // Note: This does NOT need to be in the global scope and CAN be used in your React components!
+  async function registerBackgroundFetchAsync() {
+    return BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
+      minimumInterval: 60 * 15, // 15 minutes
+      stopOnTerminate: false, // android only,
+      startOnBoot: true, // android only
+    });
+  }
+
+  // 3. (Optional) Unregister tasks by specifying the task name
+  // This will cancel any future background fetch calls that match the given name
+  // Note: This does NOT need to be in the global scope and CAN be used in your React components!
+  async function unregisterBackgroundFetchAsync() {
+    return BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
+  }
 
   useEffect(() => {
     const validateSession = async () => {
@@ -505,6 +542,8 @@ const AudioChunkUpload = () => {
   };
 
   const processUploadQueue = async () => {
+    console.log("processUploadQueue");
+
     const newUploadPromises = chunks.map(async (chunk, index) => {
       const { uri, startTime, endTime } = chunk;
 
@@ -555,6 +594,7 @@ const AudioChunkUpload = () => {
             isUploaded = true;
             // Remove the successfully uploaded chunk
             setChunks((prevChunks) => prevChunks.filter((_, i) => i !== index));
+
           } catch (err) {
             retryCount++;
             console.error(`Error uploading chunk, retrying... (${retryCount}/10)`, err);
