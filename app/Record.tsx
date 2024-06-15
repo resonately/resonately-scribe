@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Vibration, Alert } from 'react-native';
+import { SafeAreaView, View, StyleSheet, Vibration, Alert } from 'react-native';
 import { Audio } from 'expo-av';
 import { FontAwesome } from '@expo/vector-icons';
 import Timer from '@/components/Timer';
@@ -10,6 +10,10 @@ import * as SecureStore from 'expo-secure-store';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useNavigation } from '@react-navigation/native';
 import NetInfo from '@react-native-community/netinfo';
+import WavyPattern from '../components/WavyPattern';
+import { useAuth } from './AuthContext';
+import LogoutChecker from './LogoutChecker';
+
 
 type RootStackParamList = {
   Record: undefined;
@@ -27,11 +31,10 @@ const AudioChunkUpload = () => {
   const uploadingRef = useRef<boolean>(false);
   const startTimeRef = useRef<number | null>(null);
   const [originalStartTimeRef, setOriginalStartTimeRef] = useState<number | null>(null);
-  const silenceThreshold = 50; // Adjust this threshold as needed
+  const silenceThreshold = 10; // Adjust this threshold as needed
   const silenceDuration = 5000; // Duration of silence to detect a pause (in milliseconds)
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const maxChunkDuration = 60000; // Maximum duration of a chunk (1 minute) in milliseconds
-  const userId = 'user123'; // Replace with actual user ID
   const chunkTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
@@ -39,6 +42,10 @@ const AudioChunkUpload = () => {
   const [isRecordingStopped, setIsRecordingStopped] = useState(false);
   const [chunkUploadPromises, setChunkUploadPromises] = useState<Promise<void>[]>([]);
   const [isConnected, setIsConnected] = useState(true); // Track internet connection status
+  const [meteringData, setMeteringData] = useState(Array(50).fill(0.05));
+  const [userEmail, setUserEmail] = useState('');
+  const { logout, isAuthenticated } = useAuth();
+
 
   type RecordScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Record'>;
   const navigation = useNavigation<RecordScreenNavigationProp>();
@@ -59,6 +66,11 @@ const AudioChunkUpload = () => {
       try {
         const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
         const sessionExpiry = await SecureStore.getItemAsync('sessionExpiry');
+        const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+
+        if (userEmail) {
+          setUserEmail(userEmail);
+        }
 
         if (!sessionCookie || !sessionExpiry) {
           throw new Error('No session cookie or expiry found');
@@ -89,13 +101,19 @@ const AudioChunkUpload = () => {
 
   const createRecording = async (tenantName: string) => {
     const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+    const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'x-tenant-name': tenantName,
+      
     };
 
     if (sessionCookie) {
       headers['Cookie'] = sessionCookie;
+    }
+    if (userEmail) {
+      headers['created-by'] = userEmail; // replace with actual user id or username
     }
 
     const currentDate = new Date();
@@ -112,25 +130,57 @@ const AudioChunkUpload = () => {
       ':' +
       String(currentDate.getSeconds()).padStart(2, '0');
 
-    const response = await fetch('https://api.myhearing.app/oms/v1/api/resource/Medical Recording', {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({
-        recording_type: 'Audio',
-        start_time: formattedDate,
-        status: 'STARTED',
-      }),
-    });
+    
+      try {
+        const response = await fetch('https://api.myhearing.app/server/v1/start-recording', {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recordingStartTime: new Date().toISOString(), // replace with actual recording start time
+            recordingType: 'Audio', // replace with actual recording type
+            status: 'STARTED', // replace with actual status
+          }),
+        });
+  
+        const result = await response.json();
+        console.log(response);
+  
+        if (response.ok) {
+          return result.recordingId;
+          Alert.alert('Success', 'Recording started successfully');
+        } else {
+          Alert.alert('Error', result.message || 'Failed to start recording');
+        }
+      } catch (error) {
+        console.error('Error starting recording:', error);
+        Alert.alert('Error', 'An error occurred while starting the recording');
+      } finally {
+        setLoading(false);
+      }
 
-    const result = await response.json();
+    return null;
+  };
 
-    console.log(result);
+  const monitorAudioVolume = async () => {
+    isRecordingRef.current = true;
 
-    if (!response.ok || !result.data || !result.data.name) {
-      throw new Error('Failed to create a new recording');
-    }
+    const interval = setInterval(async () => {
+      if (recordingRef.current) {
+        const status = await recordingRef.current.getStatusAsync();
+        if (status.metering !== undefined) {
+          const currentLevel = status.metering + 90; // Normalize the value
+          const volumeLevels = Array.from({ length: 50 }).map(() =>
+            Math.random() * (1.5 - 0.5) + 0.5
+          );
+          volumeLevels.push(currentLevel); // Add the current level to the array
+          setMeteringData(volumeLevels);
 
-    return result.data.name;
+        }
+      }
+    }, 100)
   };
 
   const startRecording = async () => {
@@ -140,8 +190,13 @@ const AudioChunkUpload = () => {
 
       // API call to create a new recording
       const recordingId = await createRecording(tenantTitle);
-
-      // Store the recording ID/name
+      if (!recordingId) {
+        Alert.alert("An error occurred.")
+        setLoading(false); // Show loading animation
+        setLoadingMessage('');
+        return;
+      }
+      
       setRecordingId(recordingId);
 
       console.log('Requesting permissions..');
@@ -151,13 +206,20 @@ const AudioChunkUpload = () => {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        interruptionModeIOS: 0, // equivalent to Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX
+        staysActiveInBackground: true,
+        interruptionModeAndroid: 1, // equivalent to Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX
         shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+        playThroughEarpieceAndroid: true,
       });
+      
 
       console.log('Starting recording..');
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       recordingRef.current = recording;
+      
+      monitorAudioVolume();
+
       setRecording(recording);
       setIsRecording(true);
       setIsPaused(false);
@@ -181,6 +243,7 @@ const AudioChunkUpload = () => {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'x-tenant-name': tenantName,
+      'created-by': userEmail,
     };
 
     if (sessionCookie) {
@@ -201,7 +264,7 @@ const AudioChunkUpload = () => {
       ':' +
       String(currentDate.getSeconds()).padStart(2, '0');
 
-    const response = await fetch(`http://localhost:3000/server/v1/stop-recording`, {
+    const response = await fetch(`https://api.myhearing.app/server/v1/stop-recording`, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify({
@@ -256,12 +319,12 @@ const AudioChunkUpload = () => {
               formData.append('recordingStartTime', originalStartTimeRef.toString());
               formData.append('chunkStartTime', startTime.toString());
               formData.append('chunkEndTime', endTime.toString());
-              formData.append('userId', userId);
+              formData.append('userEmail', userEmail);
               if (recordingId) {
-                formData.append('recordingName', recordingId);
+                formData.append('recordingId', recordingId);
               }
 
-              const res = await fetch('http://localhost:3000/server/v1/upload-audio-chunks', {
+              const res = await fetch('https://api.myhearing.app/server/v1/upload-audio-chunks', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'multipart/form-data',
@@ -301,9 +364,16 @@ const AudioChunkUpload = () => {
     await processUploadQueue();
 
     // Wait for all chunks to be uploaded
+    let counter = 1;
     while (chunks.length > 0 || chunkUploadPromises.length > 0) {
+      counter = counter + 1;
+      if (counter > 20) {
+        break;
+      }
       await Promise.all(chunkUploadPromises);
       await new Promise<void>((resolve) => {
+        console.log(chunks.length);
+        console.log(chunkUploadPromises.length);
         console.log('Waiting for chunks to be uploaded...');
         setTimeout(resolve, 1000);
       }); // Wait for 1 second before checking again
@@ -454,12 +524,12 @@ const AudioChunkUpload = () => {
             formData.append('recordingStartTime', originalStartTimeRef.toString());
             formData.append('chunkStartTime', startTime.toString());
             formData.append('chunkEndTime', endTime.toString());
-            formData.append('userId', userId);
+            formData.append('userEmail', userEmail);
             if (recordingId) {
-              formData.append('recordingName', recordingId);
+              formData.append('recordingId', recordingId);
             }
 
-            const res = await fetch('http://localhost:3000/server/v1/upload-audio-chunks', {
+            const res = await fetch('https://api.myhearing.app/server/v1/upload-audio-chunks', {
               method: 'POST',
               headers: {
                 'Content-Type': 'multipart/form-data',
@@ -497,14 +567,6 @@ const AudioChunkUpload = () => {
     uploadingRef.current = false; // Mark uploading as done when the queue is empty
   };
 
-  useEffect(() => {
-    // Log video URL for validation
-    if (chunks.length > 0) {
-      const lastChunk = chunks[chunks.length - 1];
-      console.log('Video URL:', lastChunk.uri);
-    }
-  }, [chunks]);
-
   return (
     <View style={styles.container}>
       <Timer isRunning={isRecording} isPaused={isPaused} />
@@ -514,8 +576,19 @@ const AudioChunkUpload = () => {
           <Text style={styles.statusText}>{isConnected ? 'Online' : 'No Internet'}</Text>
         </View>
       </View>
+      {/* <SafeAreaView style={styles.container}> */}
+      {/* <WavyPattern
+        data={meteringData}
+        width={300}
+        height={200}
+        frequency={2}
+        strokeColor="red"
+        strokeWidth={3}
+      /> */}
+    {/* </SafeAreaView> */}
       <AnimatedSoundBars style={styles.soundBars} isAnimating={isRecording && !isPaused} />
       <View style={styles.buttonContainer}>
+      
         <Button
           mode="contained"
           onPress={() => {
@@ -537,6 +610,7 @@ const AudioChunkUpload = () => {
         >
           {loading ? loadingMessage : isRecording ? 'Stop & Submit' : 'Record'}
         </Button>
+        
         {isRecording && (
           <Button
             mode="outlined"
@@ -552,6 +626,7 @@ const AudioChunkUpload = () => {
           </Button>
         )}
       </View>
+      <LogoutChecker isRecordingInProgress={isRecording} />
     </View>
   );
 };
@@ -560,7 +635,7 @@ const styles = StyleSheet.create({
   pauseButton: {
     borderRadius: 30,
     borderWidth: 2,
-    borderColor: '#1E88E5',
+    borderColor: '#9575CD', // Soft purple border color
     width: 100,
     height: 60,
     justifyContent: 'center',
@@ -574,7 +649,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#E3F2FD', // Light blue background
+    backgroundColor: '#F3E5F5', // Light purple background
   },
   headerContainer: {
     flexDirection: 'row',
@@ -612,7 +687,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 10,
     borderRadius: 30,
-    backgroundColor: '#1E88E5', // Default blue button
+    backgroundColor: '#7E57C2', // Soft purple button
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -635,7 +710,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 15,
     borderRadius: 30,
-    backgroundColor: '#1E88E5', // Default blue button
+    backgroundColor: '#7E57C2', // Soft purple button
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

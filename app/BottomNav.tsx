@@ -4,7 +4,7 @@ import AudioChunkUpload from './Record'; // Ensure this points to your Record sc
 import ProfileScreen from './ProfileScreen'; // Ensure this points to your Profile screen
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-const MyTabs = () => {
+const BottomNav = () => {
   const [index, setIndex] = useState(0);
   const [routes] = useState([
     { key: 'record', title: 'Record', icon: 'microphone' },
@@ -43,4 +43,4 @@ const MyTabs = () => {
   );
 };
 
-export default MyTabs;
+export default BottomNav;

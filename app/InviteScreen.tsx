@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, TextInput, Vibration } from 'react-native';
+import { View, StyleSheet, Alert, Modal, TextInput, Button, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Text, Button, MD3LightTheme as DefaultTheme, Provider as PaperProvider } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { Camera, CameraView } from 'expo-camera';
 import { StackNavigationProp } from '@react-navigation/stack';
+import * as SecureStore from 'expo-secure-store';
 import { RootStackParamList } from './_layout'; // Adjust the path according to your project structure
 import { useTenant } from './TenantContext';
+
 
 const InviteScreen = () => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [manualCode, setManualCode] = useState('');
+  const [isModalVisible, setIsModalVisible] = useState(false);
   const { setTenantDetails } = useTenant();
 
   type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
-  const navigation = useNavigation<LoginScreenNavigationProp>();
+  const navigation = useNavigation();
 
   useEffect(() => {
     const getCameraPermissions = async () => {
@@ -27,7 +30,6 @@ const InviteScreen = () => {
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
     setScanned(true);
-    Vibration.vibrate(); // Add vibrate functionality
     handleInviteCode(data);
   };
 
@@ -58,7 +60,12 @@ const InviteScreen = () => {
   };
 
   const handleManualSubmit = () => {
-    handleInviteCode(manualCode);
+    if (manualCode.length === 4) {
+      handleInviteCode(manualCode);
+      setIsModalVisible(false);
+    } else {
+      Alert.alert('Error', 'Please enter a valid 4-digit invite code');
+    }
   };
 
   if (hasPermission === null) {
@@ -69,113 +76,91 @@ const InviteScreen = () => {
   }
 
   return (
-    <PaperProvider theme={DefaultTheme}>
-      <View style={styles.container}>
-        <CameraView
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          barcodeScannerSettings={{
-            barcodeTypes: ['qr'],
-          }}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <View style={styles.overlay}>
-          <Text style={styles.overlayText}>Scan Resonately QR</Text>
-        </View>
-        <View style={styles.bottomContainer}>
-          <Text style={styles.title}>Enter Invite Code</Text>
-          <View style={styles.inputContainer}>
+    <View style={styles.container}>
+      <CameraView
+        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr'],
+        }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={styles.overlay}>
+        <Button title="Enter Code Manually" onPress={() => setIsModalVisible(true)} />
+      </View>
+      <Modal
+        transparent={true}
+        visible={isModalVisible}
+        onRequestClose={() => setIsModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Enter Invite Code</Text>
             <TextInput
-              style={styles.input}
-              keyboardType="number-pad"
-              maxLength={4}
-              value={manualCode}
-              onChangeText={setManualCode}
-              placeholder="Enter Code"
+            style={styles.input}
+            value={manualCode}
+            onChangeText={(text) => setManualCode(text.toUpperCase())}
+            autoCapitalize="characters"
             />
-            <Button mode="contained" onPress={handleManualSubmit} style={styles.submitButton}>
-              Submit
-            </Button>
+            <Button title="Submit" onPress={handleManualSubmit} />
           </View>
         </View>
-        {scanned && (
-          <Button mode="contained" onPress={() => setScanned(false)} style={styles.scanAgainButton}>
-            Tap to Scan Again
-          </Button>
-        )}
-      </View>
-    </PaperProvider>
+      </Modal>
+      {scanned && (
+        <Button title="Tap to Scan Again" onPress={() => setScanned(false)} />
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    paddingTop: 40,
-  },
-  overlayText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-  },
-  bottomContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '25%',
-    backgroundColor: '#FFFFFF', // Light blue background
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 10,
-    shadowColor: '#000',
-    paddingBottom: 20,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 2,
-    elevation: 5,
-  },
-  title: {
-    fontSize: 22,
-    marginBottom: 30,
-    textAlign: 'center',
-    color: 'black', // Primary blue color
-    fontWeight: 'bold',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  input: {
-    flex: 1,
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    marginRight: 10,
-    fontSize: 18,
-    backgroundColor: 'white',
-  },
-  submitButton: {
-    height: 50,
-    justifyContent: 'center',
-    backgroundColor: '#1E88E5', // Primary blue color
-  },
-  scanAgainButton: {
-    position: 'absolute',
-    bottom: 10,
-    alignSelf: 'center',
-    backgroundColor: 'blue', // Primary blue color
-  },
-});
-
-export default InviteScreen;
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+    },
+    overlay: {
+      position: 'absolute',
+      bottom: 50,
+      left: 0,
+      right: 0,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContent: {
+      width: 300,
+      padding: 20,
+      backgroundColor: 'white',
+      borderRadius: 10,
+      alignItems: 'center',
+    },
+    modalTitle: {
+      fontSize: 18,
+      marginBottom: 10,
+    },
+    input: {
+      width: '100%',
+      padding: 10,
+      borderWidth: 1,
+      borderColor: '#ccc',
+      borderRadius: 5,
+      marginBottom: 20,
+      textAlign: 'center',
+    },
+    closeButton: {
+      marginTop: 20,
+      padding: 10,
+      backgroundColor: '#2196F3',
+      borderRadius: 5,
+    },
+    closeButtonText: {
+      color: 'white',
+      fontSize: 16,
+    },
+  });
+  
+  export default InviteScreen;

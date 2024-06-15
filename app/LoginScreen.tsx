@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 import { RootStackParamList } from './_layout'; // Adjust the path according to your project structure
 import { useAuth } from './AuthContext'; // Import the Auth context
 import { useTenant } from './TenantContext'; // Import the Tenant context
+import BottomNav from './BottomNav';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
@@ -18,6 +19,12 @@ const LoginScreen = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const { login } = useAuth(); // Get the login function from Auth context
   const { tenantDetails } = useTenant(); // Get the tenant details from Tenant context
+
+  useEffect(() => {
+    if (!tenantDetails || !tenantDetails?.tenantName) {
+      navigation.navigate('InviteScreen'); // Replace with your actual navigation
+    }
+  }, [tenantDetails, navigation]);
 
   const validateEmail = (email: string) => {
     const re = /\S+@\S+\.\S+/;
@@ -39,14 +46,13 @@ const LoginScreen = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-name': tenantDetails?.tenant_title || 'mysite',
+          'x-tenant-name': tenantDetails?.tenantName || 'mysite',
         },
         body: JSON.stringify({ usr: email, pwd: password }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        
         // Store the session token or cookie in SecureStore
         const setCookieHeader = response.headers.get('set-cookie');
         
@@ -57,9 +63,13 @@ const LoginScreen = () => {
           await SecureStore.setItemAsync('sessionExpiry', expiryDate.toISOString());
         }
 
+        const userEmail = await getUserDetails(await SecureStore.getItemAsync('sessionCookie'));
+        
+        await SecureStore.setItemAsync('sessionUserEmail', userEmail);
+
         // Perform your post-authentication logic here, like saving the token
         login(); // Set the authenticated state
-        navigation.replace('BottomNav'); // Navigate to the next screen
+        navigation.navigate('BottomNav'); // Navigate to the next screen
       } else {
         const errorData = await response.json();
         Alert.alert('Login failed', errorData.message);
@@ -72,6 +82,31 @@ const LoginScreen = () => {
     }
   };
 
+  const getUserDetails = async (cookies: any) => {
+    try {
+      const response = await fetch('https://api.myhearing.app/oms/v1/api/method/frappe.auth.get_logged_user', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': cookies,
+          'x-tenant-name': tenantDetails?.tenantName
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        return result.message; // This will contain the user's details
+
+      } else {
+        const result = await response.json();
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user details:', JSON.stringify(error));
+      throw error;
+    }
+  };
+
   const handleReselectClinic = () => {
     // Handle clinic reselection logic here
     navigation.navigate('InviteScreen'); // Replace with your actual navigation
@@ -79,7 +114,7 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text variant="headlineLarge" style={styles.welcomeText}>{tenantDetails.tenantTitle}</Text>
+      <Text variant="headlineLarge" style={styles.welcomeText}>{tenantDetails?.tenantTitle}</Text>
       <Text variant="titleMedium" style={styles.titleText}>Login to your account</Text>
       <TextInput
         mode="outlined"
@@ -101,7 +136,7 @@ const LoginScreen = () => {
         style={styles.input}
       />
       {loading ? (
-        <ActivityIndicator size="large" color="#1E88E5" style={styles.loader} />
+        <ActivityIndicator size="large" color="#7B1FA2" style={styles.loader} />
       ) : (
         <Button
           mode="contained"
@@ -110,7 +145,7 @@ const LoginScreen = () => {
           contentStyle={styles.buttonContent}
           labelStyle={styles.buttonLabel}
           uppercase={false}
-          theme={{ colors: { primary: '#1E88E5' } }}
+          theme={{ colors: { primary: '#7B1FA2' } }}
         >
           Login
         </Button>
@@ -127,18 +162,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#F3E5F5',
     paddingHorizontal: 20,
   },
   welcomeText: {
     fontSize: 30,
     fontWeight: 'bold',
-    color: '#000',
+    color: '#4A148C',
     marginBottom: 50,
   },
   titleText: {
     fontSize: 20,
-    color: '#000',
+    color: '#6A1B9A',
     marginBottom: 30,
   },
   input: {
@@ -146,14 +181,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   errorText: {
-    color: '#d32f2f',
+    color: '#D32F2F',
     marginBottom: 10,
   },
   button: {
     width: '100%',
     marginTop: 20,
     borderRadius: 30,
-    backgroundColor: '#1E88E5',
+    backgroundColor: '#7B1FA2',
     elevation: 5, // Add elevation for shadow effect
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -174,11 +209,11 @@ const styles = StyleSheet.create({
   },
   reselectText: {
     marginTop: 20,
-    color: '#000',
+    color: '#4A148C',
     fontSize: 14,
   },
   reselectLink: {
-    color: '#1E88E5',
+    color: '#7B1FA2',
     fontWeight: 'bold',
   },
 });
