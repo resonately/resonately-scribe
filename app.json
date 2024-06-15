@@ -15,9 +15,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": [
-          "audio"
-        ]
+        "NSMicrophoneUsageDescription": "We need access to your microphone to record your voice.",
+        "UIBackgroundModes": ["audio", "fetch"]
       }
     },
     "android": {

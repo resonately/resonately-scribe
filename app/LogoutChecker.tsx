@@ -45,7 +45,7 @@ const LogoutChecker: React.FC<LogoutCheckerProps> = ({ isRecordingInProgress }) 
     if (!isRecordingInProgress) {
       const id = setInterval(() => {
         checkSessionExpiry();
-      }, 60000); // Check every 60 seconds
+      }, 120000); // Check every 120 seconds
 
       setIntervalId(id);
 

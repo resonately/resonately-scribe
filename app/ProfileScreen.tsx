@@ -44,10 +44,12 @@ const ProfileScreen = () => {
         keyExtractor={item => item.key}
       />
       <Button
-        mode="contained"
+        mode="outlined"
         onPress={handleSignOut}
         style={styles.signOutButton}
-        icon={() => <MaterialCommunityIcons name="logout" size={24} color="#fff" />}
+        icon={() => <MaterialCommunityIcons name="logout" size={24} color="#3949ab" />}
+        contentStyle={styles.buttonContent}
+        labelStyle={styles.buttonLabel}
       >
         Sign Out
       </Button>
@@ -59,7 +61,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#e8eaf6', // Light Indigo background
   },
   header: {
     marginBottom: 16,
@@ -68,6 +70,16 @@ const styles = StyleSheet.create({
   signOutButton: {
     marginTop: 16,
     alignSelf: 'center',
+    borderColor: '#3949ab', // Light Indigo border color
+  },
+  buttonContent: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  buttonLabel: {
+    color: '#3949ab', // Light Indigo font color
+    fontSize: 18,
+    fontWeight: '600',
   },
 });
 

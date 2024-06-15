@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import NetInfo from '@react-native-community/netinfo';
 import WavyPattern from '../components/WavyPattern';
 import { useAuth } from './AuthContext';
+import { useTenant } from './TenantContext';
 import LogoutChecker from './LogoutChecker';
 
 
@@ -34,7 +35,7 @@ const AudioChunkUpload = () => {
   const silenceThreshold = 10; // Adjust this threshold as needed
   const silenceDuration = 5000; // Duration of silence to detect a pause (in milliseconds)
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const maxChunkDuration = 60000; // Maximum duration of a chunk (1 minute) in milliseconds
+  const maxChunkDuration = 10 * 1000; // Maximum duration of a chunk
   const chunkTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
@@ -49,7 +50,7 @@ const AudioChunkUpload = () => {
 
   type RecordScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Record'>;
   const navigation = useNavigation<RecordScreenNavigationProp>();
-  const { tenantTitle } = { tenantTitle: 'mysite' };
+  const { tenantName } = useTenant().tenantDetails;
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -189,7 +190,7 @@ const AudioChunkUpload = () => {
       setLoadingMessage('Starting');
 
       // API call to create a new recording
-      const recordingId = await createRecording(tenantTitle);
+      const recordingId = await createRecording(tenantName);
       if (!recordingId) {
         Alert.alert("An error occurred.")
         setLoading(false); // Show loading animation
@@ -303,7 +304,13 @@ const AudioChunkUpload = () => {
           while (!isUploaded && retryCount < 10) {
             try {
               console.log('Uploading chunk...');
+
               const fileInfo = await FileSystem.getInfoAsync(uri);
+
+              if (fileInfo.exists && !fileInfo.isDirectory) {
+                console.log(`File size: ${fileInfo.size} bytes`); 
+              }
+
               const formData = new FormData();
               formData.append('file', {
                 uri: fileInfo.uri,
@@ -328,7 +335,7 @@ const AudioChunkUpload = () => {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'multipart/form-data',
-                  'x-tenant-name': tenantTitle,
+                  'x-tenant-name': tenantName,
                 },
                 body: formData,
               });
@@ -389,7 +396,7 @@ const AudioChunkUpload = () => {
 
     try {
       console.log('Starting uploadStopRecording API');
-      await uploadStopRecording(tenantTitle);
+      await uploadStopRecording(tenantName);
       Alert.alert('Upload Complete.');
     } catch (error) {
       console.error('Failed to stop recording', error);
@@ -447,7 +454,7 @@ const AudioChunkUpload = () => {
           lastNonSilenceTime = Date.now();
         } else if (Date.now() - lastNonSilenceTime >= silenceDuration) {
           // Detected a pause
-          await chunkAudio();
+          // await chunkAudio();
           lastNonSilenceTime = Date.now();
         }
       }
@@ -509,6 +516,11 @@ const AudioChunkUpload = () => {
           try {
             console.log('Uploading chunk...');
             const fileInfo = await FileSystem.getInfoAsync(uri);
+            
+            if (fileInfo.exists && !fileInfo.isDirectory) {
+              console.log(`File size: ${fileInfo.size} bytes`); 
+            }
+
             const formData = new FormData();
             formData.append('file', {
               uri: fileInfo.uri,
@@ -533,7 +545,7 @@ const AudioChunkUpload = () => {
               method: 'POST',
               headers: {
                 'Content-Type': 'multipart/form-data',
-                'x-tenant-name': tenantTitle,
+                'x-tenant-name': tenantName,
               },
               body: formData,
             });
@@ -576,19 +588,8 @@ const AudioChunkUpload = () => {
           <Text style={styles.statusText}>{isConnected ? 'Online' : 'No Internet'}</Text>
         </View>
       </View>
-      {/* <SafeAreaView style={styles.container}> */}
-      {/* <WavyPattern
-        data={meteringData}
-        width={300}
-        height={200}
-        frequency={2}
-        strokeColor="red"
-        strokeWidth={3}
-      /> */}
-    {/* </SafeAreaView> */}
       <AnimatedSoundBars style={styles.soundBars} isAnimating={isRecording && !isPaused} />
       <View style={styles.buttonContainer}>
-      
         <Button
           mode="contained"
           onPress={() => {
@@ -610,7 +611,6 @@ const AudioChunkUpload = () => {
         >
           {loading ? loadingMessage : isRecording ? 'Stop & Submit' : 'Record'}
         </Button>
-        
         {isRecording && (
           <Button
             mode="outlined"
@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
   pauseButton: {
     borderRadius: 30,
     borderWidth: 2,
-    borderColor: '#9575CD', // Soft purple border color
+    borderColor: '#3949ab', // Light Indigo border color
     width: 100,
     height: 60,
     justifyContent: 'center',
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F3E5F5', // Light purple background
+    backgroundColor: '#e8eaf6', // Light Indigo background
   },
   headerContainer: {
     flexDirection: 'row',
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
   titleText: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#ffffff',
     flex: 1, // Takes up the available space
   },
   statusPill: {
@@ -677,7 +677,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 50,
     flexDirection: 'row',
     justifyContent: 'space-evenly',
     width: '100%',
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 10,
     borderRadius: 30,
-    backgroundColor: '#7E57C2', // Soft purple button
+    backgroundColor: '#3949ab', // Light Indigo button
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 15,
     borderRadius: 30,
-    backgroundColor: '#7E57C2', // Soft purple button
+    backgroundColor: '#3949ab', // Light Indigo button
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

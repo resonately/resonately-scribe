@@ -136,7 +136,7 @@ const LoginScreen = () => {
         style={styles.input}
       />
       {loading ? (
-        <ActivityIndicator size="large" color="#7B1FA2" style={styles.loader} />
+        <ActivityIndicator size="large" color="#3949ab" style={styles.loader} />
       ) : (
         <Button
           mode="contained"
@@ -145,7 +145,7 @@ const LoginScreen = () => {
           contentStyle={styles.buttonContent}
           labelStyle={styles.buttonLabel}
           uppercase={false}
-          theme={{ colors: { primary: '#7B1FA2' } }}
+          theme={{ colors: { primary: '#3949ab' } }}
         >
           Login
         </Button>
@@ -162,18 +162,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F3E5F5',
+    backgroundColor: '#e8eaf6',
     paddingHorizontal: 20,
   },
   welcomeText: {
     fontSize: 30,
     fontWeight: 'bold',
-    color: '#4A148C',
+    color: '#1a237e',
     marginBottom: 50,
   },
   titleText: {
     fontSize: 20,
-    color: '#6A1B9A',
+    color: '#303f9f',
     marginBottom: 30,
   },
   input: {
@@ -181,14 +181,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   errorText: {
-    color: '#D32F2F',
+    color: '#d32f2f',
     marginBottom: 10,
   },
   button: {
     width: '100%',
     marginTop: 20,
     borderRadius: 30,
-    backgroundColor: '#7B1FA2',
+    backgroundColor: '#3949ab',
     elevation: 5, // Add elevation for shadow effect
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -209,11 +209,11 @@ const styles = StyleSheet.create({
   },
   reselectText: {
     marginTop: 20,
-    color: '#4A148C',
+    color: '#1a237e',
     fontSize: 14,
   },
   reselectLink: {
-    color: '#7B1FA2',
+    color: '#3949ab',
     fontWeight: 'bold',
   },
 });
