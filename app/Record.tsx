@@ -275,7 +275,7 @@ const AudioChunkUpload = () => {
       headers: headers,
       body: JSON.stringify({
         recordingName: recordingId, // Use the recordingId
-        endTime: formattedDate,
+        endTime: new Date().toISOString(),
       }),
     });
 
@@ -336,9 +336,9 @@ const AudioChunkUpload = () => {
                 throw new Error('Recording start time is not set');
               }
 
-              formData.append('recordingStartTime', originalStartTimeRef.toString());
-              formData.append('chunkStartTime', startTime.toString());
-              formData.append('chunkEndTime', endTime.toString());
+              formData.append('recordingStartTime', new Date(originalStartTimeRef).toUTCString());
+              formData.append('chunkStartTime', new Date(startTime).toUTCString());
+              formData.append('chunkEndTime', new Date(endTime).toUTCString());
               formData.append('userEmail', userEmail);
               if (recordingId) {
                 formData.append('recordingId', recordingId);
@@ -542,9 +542,9 @@ const AudioChunkUpload = () => {
               throw new Error('Recording start time is not set');
             }
 
-            formData.append('recordingStartTime', originalStartTimeRef.toString());
-            formData.append('chunkStartTime', startTime.toString());
-            formData.append('chunkEndTime', endTime.toString());
+            formData.append('recordingStartTime', new Date(originalStartTimeRef).toUTCString());
+            formData.append('chunkStartTime', new Date(startTime).toUTCString());
+            formData.append('chunkEndTime', new Date(endTime).toUTCString());
             formData.append('userEmail', userEmail);
             if (recordingId) {
               formData.append('recordingId', recordingId);

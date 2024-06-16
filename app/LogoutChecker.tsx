@@ -15,7 +15,7 @@ const LogoutChecker: React.FC<LogoutCheckerProps> = ({ isRecordingInProgress }) 
   const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
   
   const { logout } = useAuth();
-  const expiryCheckFrequency = 10 * 1000; // Every 10 minutes.
+  const expiryCheckFrequency = 10 * 60 * 1000; // Every 10 minutes.
 
   const { tenantDetails } = useTenant();
 
