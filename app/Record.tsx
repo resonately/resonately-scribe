@@ -307,6 +307,11 @@ const AudioChunkUpload = () => {
           let startTime = new Date();
           
           setIsRecordingStopped(true);
+          setIsRecording(false);
+          setIsPaused(false);
+          isRecordingRef.current = false;
+          resetRecordingState();
+          
           startTimeRef.current = null;
 
           while (!isUploaded && retryCount < 10) {
@@ -410,10 +415,6 @@ const AudioChunkUpload = () => {
     } finally {
       setLoading(false); // Hide loader on the button
       setLoadingMessage('');
-      setIsRecording(false);
-      setIsPaused(false);
-      isRecordingRef.current = false;
-      resetRecordingState();
     }
   };
 

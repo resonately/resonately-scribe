@@ -4,6 +4,7 @@ import { Text, List, Avatar, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, StackActions } from '@react-navigation/native';
 import { useAuth } from './AuthContext';
+import * as SecureStore from 'expo-secure-store';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
@@ -24,9 +25,22 @@ const ProfileScreen = () => {
     />
   );
 
-  const handleSignOut = () => {
-    logout();
-    console.log('User signed out');
+  const handleSignOut = async () => {
+    try {
+      // Perform logout logic
+      logout();
+      console.log('User signed out');
+      
+      // Clear stored session data
+      await SecureStore.deleteItemAsync('sessionCookie');
+      await SecureStore.deleteItemAsync('sessionExpiry');
+      await SecureStore.deleteItemAsync('userEmail');
+      await SecureStore.deleteItemAsync('password');
+      
+      console.log('Secure store cleared');
+    } catch (error) {
+      console.error('Error during sign out:', error);
+    }
   };
 
   useEffect(() => {

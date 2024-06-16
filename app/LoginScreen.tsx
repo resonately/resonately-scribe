@@ -57,10 +57,25 @@ const LoginScreen = () => {
         const setCookieHeader = response.headers.get('set-cookie');
         
         if (setCookieHeader) {
-          const expiryMatch = setCookieHeader?.match(/expires=([^;]+);/);
-          const expiryDate = expiryMatch ? new Date(expiryMatch[1]) : new Date(Date.now() + 3600 * 1000); // Default to 1 hour if no expiry
+          const expiryMatch = setCookieHeader?.match(/expires=([^;]+);?/i);
+
+          let expiryDate = new Date(Date.now() + 5 * 3600 * 1000); // Default to 5 hour if no expiry;
+          console.log("expiryMatch");
+          if (expiryMatch && expiryMatch[1]) {
+            const expiresString = expiryMatch[1];
+            const expiresDate = new Date(expiresString);
+
+            expiryDate =  expiresDate;
+            
+            console.log('Expires String:', expiresString); // Outputs: Expires String: Sun, 23 Jun 2024 22:12:38 GMT
+            console.log('Expires Date:', expiresDate); 
+          }
+          
           await SecureStore.setItemAsync('sessionCookie', setCookieHeader);
           await SecureStore.setItemAsync('sessionExpiry', expiryDate.toISOString());
+          
+          // await SecureStore.setItemAsync('userEmail', email);
+          // await SecureStore.setItemAsync('password', password);
         }
 
         const userEmail = await getUserDetails(await SecureStore.getItemAsync('sessionCookie'));

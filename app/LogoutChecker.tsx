@@ -3,6 +3,8 @@ import { View, Text } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from './_layout'; // Adjust the path according to your project structure
+import { useTenant } from './TenantContext';
+import { useAuth } from './AuthContext';
 
 interface LogoutCheckerProps {
   isRecordingInProgress: boolean;
@@ -11,6 +13,11 @@ interface LogoutCheckerProps {
 const LogoutChecker: React.FC<LogoutCheckerProps> = ({ isRecordingInProgress }) => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
+  
+  const { logout } = useAuth();
+  const expiryCheckFrequency = 10 * 1000; // Every 10 minutes.
+
+  const { tenantDetails } = useTenant();
 
   const checkSessionExpiry = async () => {
     try {
@@ -21,11 +28,12 @@ const LogoutChecker: React.FC<LogoutCheckerProps> = ({ isRecordingInProgress }) 
         const timeDifference = sessionExpiry.getTime() - currentTime.getTime();
         console.log(currentTime.toISOString());
         console.log(sessionExpiry.toISOString());
-        const twoHoursInMilliseconds = 0.5 * 60 * 60 * 1000;
+        const twoHoursInMilliseconds = 2 * 60 * 60 * 1000;
 
         if (timeDifference <= twoHoursInMilliseconds) {
           // Log out the user
-          handleLogout();
+          await handleLogout();
+          
         }
       }
     } catch (error) {
@@ -34,9 +42,11 @@ const LogoutChecker: React.FC<LogoutCheckerProps> = ({ isRecordingInProgress }) 
   };
 
   const handleLogout = async () => {
+
     // Clear any stored session data
     await SecureStore.deleteItemAsync('sessionCookie');
     await SecureStore.deleteItemAsync('sessionExpiry');
+    logout();
     // Navigate to the login screen
     navigation.navigate('LoginScreen'); // Use navigate instead of replace
   };
@@ -45,7 +55,7 @@ const LogoutChecker: React.FC<LogoutCheckerProps> = ({ isRecordingInProgress }) 
     if (!isRecordingInProgress) {
       const id = setInterval(() => {
         checkSessionExpiry();
-      }, 120000); // Check every 120 seconds
+      }, expiryCheckFrequency); // Check every 10 mins
 
       setIntervalId(id);
 
