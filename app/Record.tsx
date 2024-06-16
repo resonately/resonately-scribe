@@ -25,21 +25,6 @@ type RootStackParamList = {
 };
 
 
-const BACKGROUND_FETCH_TASK = 'UPLOAD_AUDIO_IN_BACKGROUND';
-
-// 1. Define the task by providing a name and the function that should be executed
-// Note: This needs to be called in the global scope (e.g outside of your React components)
-TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
-  const now = Date.now();
-
-  console.log(`Got background fetch call at date: ${new Date(now).toISOString()}`);
-
-  // Here, start your processUploadQueue
-
-  // Be sure to return the successful result type!
-  return BackgroundFetch.BackgroundFetchResult.NewData;
-});
-
 const AudioChunkUpload = () => {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -54,7 +39,7 @@ const AudioChunkUpload = () => {
   const silenceThreshold = 10; // Adjust this threshold as needed
   const silenceDuration = 5000; // Duration of silence to detect a pause (in milliseconds)
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const maxChunkDuration = 10 * 1000; // Maximum duration of a chunk
+  const maxChunkDuration = 120 * 1000; // Maximum duration of a chunk
   const chunkTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
@@ -81,23 +66,6 @@ const AudioChunkUpload = () => {
     };
   }, []);
 
-  // 2. Register the task at some point in your app by providing the same name,
-  // and some configuration options for how the background fetch should behave
-  // Note: This does NOT need to be in the global scope and CAN be used in your React components!
-  async function registerBackgroundFetchAsync() {
-    return BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-      minimumInterval: 60 * 15, // 15 minutes
-      stopOnTerminate: false, // android only,
-      startOnBoot: true, // android only
-    });
-  }
-
-  // 3. (Optional) Unregister tasks by specifying the task name
-  // This will cancel any future background fetch calls that match the given name
-  // Note: This does NOT need to be in the global scope and CAN be used in your React components!
-  async function unregisterBackgroundFetchAsync() {
-    return BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
-  }
 
   useEffect(() => {
     const validateSession = async () => {
@@ -337,6 +305,9 @@ const AudioChunkUpload = () => {
           let isUploaded = false;
           let retryCount = 0;
           let startTime = new Date();
+          
+          setIsRecordingStopped(true);
+          startTimeRef.current = null;
 
           while (!isUploaded && retryCount < 10) {
             try {
@@ -391,8 +362,6 @@ const AudioChunkUpload = () => {
             }
           }
 
-          setIsRecordingStopped(true);
-          startTimeRef.current = null;
           console.log('Recording stopped and stored at', uri);
           console.log('Chunks:', chunks);
         }

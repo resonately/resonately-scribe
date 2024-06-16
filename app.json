@@ -2,7 +2,7 @@
   "expo": {
     "name": "AIScribeApp",
     "slug": "AIScribeApp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -14,10 +14,18 @@
     },
     "ios": {
       "supportsTablet": true,
+      "buildNumber": "5",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "We need access to your microphone to record your voice.",
-        "UIBackgroundModes": ["audio", "fetch"]
-      }
+        "UIBackgroundModes": [
+          "audio",
+          "fetch"
+        ],
+        "entitlements": {
+          "aps-environment": "production"
+        }
+      },
+      "bundleIdentifier": "com.myhearingapp.AIScribeApp"
     },
     "android": {
       "adaptiveIcon": {
@@ -36,6 +44,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "b65b67c1-3ab7-4ebe-9482-76c8c9f064c6"
+      }
     }
   }
 }
