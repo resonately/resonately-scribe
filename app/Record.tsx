@@ -591,7 +591,7 @@ const AudioChunkUpload = () => {
   return (
     <View style={styles.container}>
       <Timer isRunning={isRecording} isPaused={isPaused} />
-      <Text variant="bodyLarge">Audio Level: {audioLevel}</Text>
+      {/* <Text variant="bodyLarge">Audio Level: {audioLevel}</Text> */}
       <View style={styles.headerContainer}>
         <View style={[styles.statusPill, { backgroundColor: isConnected ? '#4CAF50' : '#FFC107' }]}>
           <Text style={styles.statusText}>{isConnected ? 'Online' : 'No Internet'}</Text>
