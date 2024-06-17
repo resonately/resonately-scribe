@@ -7,7 +7,7 @@ const normalizeVolume = (volume, minVolume = 20, maxVolume = 90) => {
   return ((volume - minVolume) / (maxVolume - minVolume)) * 2;
 };
 
-const AnimatedSoundBars = ({ barColor = 'red', isAnimating = false, volume = 1, maxHeight = 30 }) => {
+const AnimatedSoundBars = ({ barColor = 'red', isAnimating = false, volume = 1, maxHeight = 50 }) => {
   const dotAnimations = React.useRef(
     Array.from({ length: 50 }).map(createAnimationValue)
   ).current;

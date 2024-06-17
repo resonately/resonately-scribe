@@ -1,36 +1,38 @@
 {
   "expo": {
-    "name": "AIScribeApp",
+    "name": "Resonately for Clinics",
     "slug": "AIScribeApp",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/resonately-icon-1024.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/resonately-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#015B4F"
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "7",
+      "buildNumber": "8",
+      "bundleIdentifier": "com.myhearingapp.AIScribeApp",
+      "icon": "./assets/images/resonately-icon-1024.png",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "We need access to your microphone to record your voice.",
         "UIBackgroundModes": [
           "audio",
-          "fetch"
+          "fetch",
+          "remote-notification"
         ],
         "entitlements": {
           "aps-environment": "production"
         }
-      },
-      "bundleIdentifier": "com.myhearingapp.AIScribeApp"
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/resonately-icon.png",
+        "backgroundColor": "#015B4F"
       }
     },
     "web": {

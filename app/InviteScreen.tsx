@@ -28,7 +28,7 @@ const InviteScreen = () => {
   }, []);
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
-    setScanned(true);
+    // setScanned(true);
     handleInviteCode(data);
   };
 
