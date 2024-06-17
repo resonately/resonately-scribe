@@ -7,7 +7,6 @@ import * as SecureStore from 'expo-secure-store';
 import { RootStackParamList } from './_layout'; // Adjust the path according to your project structure
 import { useAuth } from './AuthContext'; // Import the Auth context
 import { useTenant } from './TenantContext'; // Import the Tenant context
-import BottomNav from './BottomNav';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
@@ -140,6 +139,7 @@ const LoginScreen = () => {
         autoCapitalize="none"
         error={!!emailError}
         style={styles.input}
+        onSubmitEditing={() => handleLogin()} // Trigger login on return key press
       />
       {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
       <TextInput
@@ -149,6 +149,7 @@ const LoginScreen = () => {
         onChangeText={setPassword}
         secureTextEntry
         style={styles.input}
+        onSubmitEditing={() => handleLogin()} // Trigger login on return key press
       />
       {loading ? (
         <ActivityIndicator size="large" color="#3949ab" style={styles.loader} />
