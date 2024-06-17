@@ -66,6 +66,28 @@ const AudioChunkUpload = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let intervalId: any;
+  
+    if (isRecording && !isPaused) {
+      intervalId = setInterval(() => {
+        setAudioLevel(prevLevel => {
+          // Generate a small random delta value between -1 and 1
+          const delta = (Math.random() - 0.5) * 5;
+          // Apply the delta to the previous level
+          const newLevel = prevLevel + delta;
+          return newLevel;
+        });
+      }, 200); // Update every 100 milliseconds
+    }
+  
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId); // Clean up the interval on component unmount or when isRecording changes to false
+      }
+    };
+  }, [isRecording, isPaused]); // Dependency array includes isRecording
+
 
   useEffect(() => {
     const validateSession = async () => {
@@ -592,13 +614,13 @@ const AudioChunkUpload = () => {
   return (
     <View style={styles.container}>
       <Timer isRunning={isRecording} isPaused={isPaused} />
-      {/* <Text variant="bodyLarge">Audio Level: {audioLevel}</Text> */}
+      <Text variant="bodyLarge">Audio Level: {audioLevel}</Text>
       <View style={styles.headerContainer}>
         <View style={[styles.statusPill, { backgroundColor: isConnected ? '#4CAF50' : '#FFC107' }]}>
           <Text style={styles.statusText}>{isConnected ? 'Online' : 'No Internet'}</Text>
         </View>
       </View>
-      <AnimatedSoundBars style={styles.soundBars} isAnimating={isRecording && !isPaused} />
+      <AnimatedSoundBars style={styles.soundBars} isAnimating={isRecording && !isPaused} volume={audioLevel}/>
       <View style={styles.buttonContainer}>
         <Button
           mode="contained"

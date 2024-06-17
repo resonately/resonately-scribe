@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "5",
+      "buildNumber": "7",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "We need access to your microphone to record your voice.",
         "UIBackgroundModes": [

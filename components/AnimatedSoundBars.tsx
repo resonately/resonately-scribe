@@ -1,35 +1,54 @@
 import React, { useEffect } from 'react';
 import { View, Animated, Easing, StyleSheet } from 'react-native';
 
-const createAnimationValue = () => new Animated.Value(1);
+const createAnimationValue = () => new Animated.Value(0.05);
 
-const AnimatedSoundBars = ({ barColor = 'red', isAnimating = false }) => {
+const normalizeVolume = (volume, minVolume = 20, maxVolume = 90) => {
+  return ((volume - minVolume) / (maxVolume - minVolume)) * 2;
+};
+
+const AnimatedSoundBars = ({ barColor = 'red', isAnimating = false, volume = 1, maxHeight = 30 }) => {
   const dotAnimations = React.useRef(
     Array.from({ length: 50 }).map(createAnimationValue)
   ).current;
 
   useEffect(() => {
-    const animations = dotAnimations.map((node) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(node, {
-            toValue: Math.random() * (1.5 - 0.5) + 0.5, // Random scale between 0.5 and 1.5
-            easing: Easing.ease,
-            useNativeDriver: true,
-            duration: Math.random() * (800 - 400) + 400, // Random duration between 400 and 800 ms
-          }),
-          Animated.timing(node, {
-            toValue: 1, // Reset to original scale
-            easing: Easing.ease,
-            useNativeDriver: true,
-            duration: Math.random() * (800 - 400) + 400, // Random duration between 400 and 800 ms
-          }),
-        ])
-      )
-    );
+    const normalizedVolume = normalizeVolume(volume);
 
+    dotAnimations.forEach((node, index) => {
+      const middleIndex = dotAnimations.length / 2;
+      const distanceFromCenter = Math.abs(index - middleIndex) / middleIndex;
+      const scaleFactor = Math.cos(distanceFromCenter * Math.PI); // Wave-like effect using cosine
+      const randomness = Math.random() * 2 * distanceFromCenter; // Randomness that increases away from the center
+      const targetValue = Math.min(0.05 + normalizedVolume * (1 + scaleFactor + randomness), maxHeight); // Ensure it does not exceed maxHeight
+
+      if (isAnimating) {
+        Animated.timing(node, {
+          toValue: targetValue,
+          easing: Easing.ease,
+          useNativeDriver: true,
+          duration: 200, // Smooth transition duration
+        }).start();
+      }
+    });
+  }, [volume, maxHeight]);
+
+  useEffect(() => {
     if (isAnimating) {
-      Animated.parallel(animations).start();
+      dotAnimations.forEach((node, index) => {
+        const middleIndex = dotAnimations.length / 2;
+        const distanceFromCenter = Math.abs(index - middleIndex) / middleIndex;
+        const scaleFactor = Math.cos(distanceFromCenter * Math.PI); // Wave-like effect using cosine
+        const randomness = Math.random() * 2 * (1- distanceFromCenter); // Randomness that increases away from the center
+        const targetValue = Math.min(0.05 + normalizeVolume(volume) * (1 + scaleFactor + randomness), maxHeight); // Ensure it does not exceed maxHeight
+
+        Animated.timing(node, {
+          toValue: targetValue,
+          easing: Easing.ease,
+          useNativeDriver: true,
+          duration: 100, // Smooth transition duration
+        }).start();
+      });
     } else {
       Animated.parallel(
         dotAnimations.map((node) =>
@@ -37,16 +56,12 @@ const AnimatedSoundBars = ({ barColor = 'red', isAnimating = false }) => {
             toValue: 0.05, // Settle to smaller height
             easing: Easing.ease,
             useNativeDriver: true,
-            duration: 200, // Gradual stop duration
+            duration: 100, // Gradual stop duration
           })
         )
       ).start();
     }
-
-    return () => {
-      animations.forEach((anim) => anim.stop());
-    };
-  }, [isAnimating]);
+  }, [isAnimating, maxHeight]);
 
   return (
     <View style={styles.row}>
@@ -55,7 +70,7 @@ const AnimatedSoundBars = ({ barColor = 'red', isAnimating = false }) => {
           key={`${index}`}
           style={[
             styles.bar,
-            { backgroundColor: barColor },
+            { backgroundColor: barColor, height: maxHeight }, // Ensure bar height does not exceed maxHeight
             {
               transform: [{ scaleY: animation }],
             },
@@ -75,7 +90,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   bar: {
-    height: 70, // Adjust the height if needed
+    height: 70, // This will be overridden by the maxHeight prop
     width: 3,
     borderRadius: 2,
     marginHorizontal: 2,
