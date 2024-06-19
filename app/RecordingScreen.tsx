@@ -51,7 +51,6 @@ const RecordingScreen = (): JSX.Element => {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const bottomSheetRef = useRef<BottomSheet>(null);
 
-  
   useEffect(() => {
     let intervalId: any;
   
@@ -202,13 +201,17 @@ const RecordingScreen = (): JSX.Element => {
   };
 
   const stopRecording = async () => {
+    console.log('stopRecording');
     setIsRecording(false);
     setStopLoading(true);
     setButtonDisabled(true); // Disable the button immediately when clicked
-    await recording?.stopAndUnloadAsync();
-    const { sound, status } = await recording?.createNewLoadedSoundAsync()!;
 
-    if (status.isLoaded && recording) {
+    console.log(recording);
+    await recording?.stopAndUnloadAsync();
+    console.log('recording?.stopAndUnloadAsync()');
+
+    if (recording) {
+      console.log('status.isLoaded && recording');
       const recordingUri = await getRecordingUri(recording);
       if (recordingUri) {
         const localFileUri = await storeRecordingLocally(recordingUri, recordingId!);
@@ -238,11 +241,13 @@ const RecordingScreen = (): JSX.Element => {
         });
 
         // Update the status to "Uploading"
+        console.log('Updating status to Uploading');
         setRecordings((prevRecordings) => {
           const updatedRecordings = prevRecordings.map((rec) =>
             rec.id === recordingId ? { ...rec, status: 'Uploading', endDate: new Date().toISOString() } : rec
           );
           saveRecordings(updatedRecordings); // Save updated recordings
+          console.log('Updated recordings:', updatedRecordings); // Log the updated recordings
           return updatedRecordings;
         });
 
@@ -251,20 +256,24 @@ const RecordingScreen = (): JSX.Element => {
         if (uploadSuccess) {
           await deleteRecordingFolder(recordingId!);
           // Update the status to "Completed"
+          console.log('Updating status to Completed');
           setRecordings((prevRecordings) => {
             const updatedRecordings = prevRecordings.map((rec) =>
               rec.id === recordingId ? { ...rec, status: 'Completed' } : rec
             );
             saveRecordings(updatedRecordings); // Save updated recordings
+            console.log('Updated recordings:', updatedRecordings); // Log the updated recordings
             return updatedRecordings;
           });
         } else {
-            // Update the status to "Failed"
-            setRecordings((prevRecordings) => {
-              const updatedRecordings = prevRecordings.map((rec) =>
+          // Update the status to "Failed"
+          console.log('Updating status to Failed');
+          setRecordings((prevRecordings) => {
+            const updatedRecordings = prevRecordings.map((rec) =>
               rec.id === recordingId ? { ...rec, status: 'Failed' } : rec
             );
             saveRecordings(updatedRecordings); // Save updated recordings
+            console.log('Updated recordings:', updatedRecordings); // Log the updated recordings
             return updatedRecordings;
           });
         }

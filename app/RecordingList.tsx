@@ -6,6 +6,7 @@ interface Recording {
   startDate: string;
   endDate: string | null;
   status: string;
+  uploadProgress: number; // New property to hold the upload progress percentage
 }
 
 interface RecordingCardProps {
@@ -16,6 +17,12 @@ const RecordingCard = ({ recording }: RecordingCardProps): JSX.Element => {
   const durationInSeconds = recording.endDate
     ? (new Date(recording.endDate).getTime() - new Date(recording.startDate).getTime()) / 1000
     : 0;
+
+  const durationText = durationInSeconds < 60
+    ? `${durationInSeconds.toFixed(0)} s`
+    : durationInSeconds < 3600
+    ? `${Math.floor(durationInSeconds / 60)} m ${Math.floor(durationInSeconds % 60)} s`
+    : `${Math.floor(durationInSeconds / 3600)} h ${Math.floor((durationInSeconds % 3600) / 60)} m ${Math.floor(durationInSeconds % 60)} s`;
 
   return (
     <View style={styles.card}>
@@ -45,7 +52,12 @@ const RecordingCard = ({ recording }: RecordingCardProps): JSX.Element => {
           </Text>
         </View>
       </View>
-      <Text style={styles.duration}>{durationInSeconds.toFixed(2)} s</Text>
+      <View style={styles.durationContainer}>
+        <Text style={styles.duration}>{durationText}</Text>
+        <View style={styles.progressBarBackground}>
+          <View style={[styles.progressBarFill, { width: `${recording.uploadProgress}%` }]} />
+        </View>
+      </View>
     </View>
   );
 };
@@ -55,7 +67,15 @@ interface RecordingListProps {
   onDelete: (id: string) => void;
 }
 
-const RecordingList = ({ recordings }: RecordingListProps): JSX.Element => {
+const RecordingList = ({ recordings, onDelete }: RecordingListProps): JSX.Element => {
+  if (recordings.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>Welcome! Start recording for a better day!</Text>
+      </View>
+    );
+  }
+
   return (
     <FlatList
       data={recordings}
@@ -94,9 +114,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
+  durationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   duration: {
     fontSize: 14,
     color: '#555',
+  },
+  progressBarBackground: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 3,
+    marginLeft: 8,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#4CAF50',
+    borderRadius: 3,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#888',
   },
 });
 

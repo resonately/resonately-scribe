@@ -14,10 +14,10 @@ const displayRecordings = async () => {
 
 export const saveRecordings = async (recordings: any) => {
   try {
-    await displayRecordings();
     const jsonValue = JSON.stringify(recordings);
     await AsyncStorage.setItem(RECORDINGS_KEY, jsonValue);
     console.log('Recordings saved successfully.');
+    await displayRecordings();
   } catch (e) {
     console.error('Failed to save recordings.', e);
   }
@@ -25,9 +25,9 @@ export const saveRecordings = async (recordings: any) => {
 
 export const loadRecordings = async () => {
   try {
-    await displayRecordings();
     const jsonValue = await AsyncStorage.getItem(RECORDINGS_KEY);
     console.log('Recordings loaded successfully.');
+    await displayRecordings();
     return jsonValue != null ? JSON.parse(jsonValue) : [];
   } catch (e) {
     console.error('Failed to load recordings.', e);
@@ -37,8 +37,8 @@ export const loadRecordings = async () => {
 
 export const clearRecordings = async () => {
   try {
-    await displayRecordings();
     await AsyncStorage.removeItem(RECORDINGS_KEY);
+    await displayRecordings();
     console.log('Recordings cleared successfully.');
   } catch (e) {
     console.error('Failed to clear recordings.', e);
