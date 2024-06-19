@@ -10,36 +10,39 @@ import * as SecureStore from 'expo-secure-store';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useNavigation } from '@react-navigation/native';
 import NetInfo from '@react-native-community/netinfo';
-import WavyPattern from '../components/WavyPattern';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
 import LogoutChecker from './LogoutChecker';
-import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useKeepAwake } from 'expo-keep-awake';
+import PersistentQueue from './PersistentQueue';
+import { RootStackParamList } from './_layout';
 
 
-type RootStackParamList = {
-  Record: undefined;
-  LoginScreen: undefined;
-};
+const RecordScreen = () => {
+  useKeepAwake(); // Keeps the app awake while this component is mounted
 
+  // Define the type alias for a chunk
+  type Chunk = {
+    startTime: number;
+    endTime: number;
+    uri: string;
+  };
 
-const AudioChunkUpload = () => {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingIdRef = useRef<string | null>(null);
   const isRecordingRef = useRef<boolean>(false);
-  const [chunks, setChunks] = useState<Array<{ startTime: number; endTime: number; uri: string }>>([]);
+  const [chunks, setChunks] = useState<Array<Chunk>>([]);
   const uploadingRef = useRef<boolean>(false);
   const startTimeRef = useRef<number | null>(null);
   const [originalStartTimeRef, setOriginalStartTimeRef] = useState<number | null>(null);
   const silenceThreshold = 10; // Adjust this threshold as needed
   const silenceDuration = 5000; // Duration of silence to detect a pause (in milliseconds)
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const maxChunkDuration = 120 * 1000; // Maximum duration of a chunk
+  const [rawAudioLevel, setRawAudioLevel] = useState<number>(0);
   const chunkTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
@@ -50,19 +53,102 @@ const AudioChunkUpload = () => {
   const [meteringData, setMeteringData] = useState(Array(50).fill(0.05));
   const [userEmail, setUserEmail] = useState('');
   const { logout, isAuthenticated } = useAuth();
+  const queueFolder = 'queue/';
+  const queueFile = 'queueFile.json';
+  const chunkFolder = 'chunks/';
+  const maxChunkFileAge =  2 * 24 * 60 * 60 * 1000; // 2 days
+  const maxChunkUploadDuration = 0.5 * 60 * 1000; // Every 30 seconds.
+  const chunkFileDeletionFrequency =   10 * 60 * 1000; // Every 10 minutes
+  const maxChunkDuration =  10 * 1000; // 2 * 60 * 1000; // Maximum duration of a chunk
 
+  // Initialize the queue state
+  const [queue, setQueue] = useState<PersistentQueue | null>(null);
 
   type RecordScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Record'>;
   const navigation = useNavigation<RecordScreenNavigationProp>();
   const { tenantName } = useTenant().tenantDetails;
 
+  // Internet connectivity listener
   useEffect(() => {
+
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsConnected(state.isConnected === true);
     });
 
     return () => {
       unsubscribe();
+    };
+  }, []);
+
+  // Initialize the queue
+  useEffect(() => {
+    const initQueue = async () => {
+      const persistentQueue = new PersistentQueue(queueFolder, queueFile);
+      await persistentQueue.initialize();
+      setQueue(persistentQueue);
+      
+      // Dummy test variable
+      // const testItem = { test: "This is a test item" };
+      
+      // Enqueue the test item
+      // if (persistentQueue) {
+        // await persistentQueue.enqueue(testItem);
+        // await queue?.enqueue(testItem);
+        // await queue?.dequeue();
+        // await queue?.dequeue();
+        // await queue?.dequeue();
+        // await queue?.dequeue();
+        // await queue?.dequeue();
+
+
+
+        //   console.log('Test item enqueued');
+      // }
+
+    };
+    
+    initQueue();
+    
+  }, []);
+
+
+  const checkAndDeleteFiles = async () => {
+
+    const chunksDir = FileSystem.documentDirectory + chunkFolder;
+
+    const dirInfo = await FileSystem.readDirectoryAsync(chunksDir);
+    
+
+    // await createSampleFile();
+
+    console.log('Checking for files in chunks directory:');
+    if (dirInfo) {
+      for (const fileName of dirInfo) {
+      const fileInfo = await FileSystem.getInfoAsync(chunksDir + fileName);
+      if (fileInfo.exists && fileInfo.modificationTime) {
+        const fileCreationDate = new Date(fileInfo.modificationTime * 1000); // Convert seconds to milliseconds
+        console.log(`File: ${fileName}, Created At: ${fileCreationDate.toLocaleString()}`);
+
+        const currentTime = new Date();
+        const tenSecondsInMillis = maxChunkFileAge; 
+
+        if ((currentTime.getTime() - fileCreationDate.getTime()) > tenSecondsInMillis) {
+          // Delete file if it is older than 10 seconds
+          await FileSystem.deleteAsync(chunksDir + fileName);
+          console.log(`Deleted old file: ${fileName}`);
+        } else {
+          console.log(`File: ${fileName} is not old enough to be deleted.`);
+        }
+      }
+    }
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(checkAndDeleteFiles, chunkFileDeletionFrequency); // Check every second
+
+    return () => {
+      clearInterval(interval); // Clear interval when component unmounts
     };
   }, []);
 
@@ -111,7 +197,7 @@ const AudioChunkUpload = () => {
 
         // Session is valid, proceed with your logic
       } catch (error) {
-        console.error('Session validation error', error);
+        console.log('Session validation error', error);
         Alert.alert('Session expired', 'Please log in again.');
         navigation.replace('LoginScreen'); // Navigate to the login screen
       }
@@ -123,7 +209,7 @@ const AudioChunkUpload = () => {
   useEffect(() => {
     if (!uploadingRef.current) {
       uploadingRef.current = true;
-      processUploadQueue();
+      processPersistentQueue();
     }
   }, [chunks]);
 
@@ -177,8 +263,9 @@ const AudioChunkUpload = () => {
         console.log(response);
   
         if (response.ok) {
+          console.log("result.recordingId");
+          console.log(result.recordingId);
           return result.recordingId;
-          Alert.alert('Success', 'Recording started successfully');
         } else {
           Alert.alert('Error', result.message || 'Failed to start recording');
         }
@@ -218,6 +305,10 @@ const AudioChunkUpload = () => {
 
       // API call to create a new recording
       const recordingId = await createRecording(tenantName);
+
+      console.log('const recordingId = await createRecording(tenantName);');
+      console.log(recordingId);
+
       if (!recordingId) {
         Alert.alert("An error occurred.")
         setLoading(false); // Show loading animation
@@ -225,7 +316,9 @@ const AudioChunkUpload = () => {
         return;
       }
       
-      setRecordingId(recordingId);
+      recordingIdRef.current = recordingId;
+      await setRecordingId(recordingId);
+
 
       console.log('Requesting permissions..');
       await Audio.requestPermissionsAsync();
@@ -256,7 +349,7 @@ const AudioChunkUpload = () => {
       setOriginalStartTimeRef(Date.now());
 
       // Start the chunking process
-      detectSilence();
+      // detectSilence();
       startChunkTimer();
     } catch (err) {
       console.error('Failed to start recording', err);
@@ -266,185 +359,38 @@ const AudioChunkUpload = () => {
     }
   };
 
-  const uploadStopRecording = async (tenantName: string) => {
-    const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'x-tenant-name': tenantName,
-      'created-by': userEmail,
-    };
-
-    if (sessionCookie) {
-      headers['Cookie'] = sessionCookie;
-    }
-
-    const currentDate = new Date();
-    const formattedDate =
-      currentDate.getFullYear() +
-      '-' +
-      String(currentDate.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(currentDate.getDate()).padStart(2, '0') +
-      ' ' +
-      String(currentDate.getHours()).padStart(2, '0') +
-      ':' +
-      String(currentDate.getMinutes()).padStart(2, '0') +
-      ':' +
-      String(currentDate.getSeconds()).padStart(2, '0');
-
-    const response = await fetch(`https://api.myhearing.app/server/v1/stop-recording`, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({
-        recordingName: recordingId, // Use the recordingId
-        endTime: new Date().toISOString(),
-      }),
-    });
-
-    const result = await response.json();
-
-    console.log(result);
-
-    if (!response || !result.success) {
-      throw new Error('Failed to update the recording');
-    }
-
-    // Reset the recordingId
-    setRecordingId(null);
-  };
-
   const stopRecording = async () => {
     setLoading(true); // Show loader on the button
+    setIsLoading(true); // Wait for any remaining uploads to complete
+    
     setLoadingMessage('Uploading...');
+
     console.log('Stopping recording..');
 
     if (recordingRef.current) {
       try {
-        await recordingRef.current.stopAndUnloadAsync();
-        const uri = recordingRef.current.getURI();
-        if (uri) {
-          const endTime = Date.now();
-          let isUploaded = false;
-          let retryCount = 0;
-          let startTime = new Date();
-          
-          setIsRecordingStopped(true);
-          setIsRecording(false);
-          setIsPaused(false);
-          isRecordingRef.current = false;
-          resetRecordingState();
-          
-          startTimeRef.current = null;
+        await chunkAudioAndStoreChunkInDisk(true);
+        await processPersistentQueue();
 
-          while (!isUploaded && retryCount < 10) {
-            try {
-              console.log('Uploading chunk...');
-
-              const fileInfo = await FileSystem.getInfoAsync(uri);
-
-              if (fileInfo.exists && !fileInfo.isDirectory) {
-                console.log(`File size: ${fileInfo.size} bytes`); 
-              }
-
-              const formData = new FormData();
-              formData.append('file', {
-                uri: fileInfo.uri,
-                type: 'audio/m4a',
-                name: 'audio_chunk.m4a',
-              });
-
-              // Ensure startTimeRef.current is not null
-              if (!originalStartTimeRef) {
-                throw new Error('Recording start time is not set');
-              }
-
-              formData.append('recordingStartTime', new Date(originalStartTimeRef).toUTCString());
-              formData.append('chunkStartTime', new Date(startTime).toUTCString());
-              formData.append('chunkEndTime', new Date(endTime).toUTCString());
-              formData.append('userEmail', userEmail);
-              if (recordingId) {
-                formData.append('recordingId', recordingId);
-              }
-
-              const res = await fetch('https://api.myhearing.app/server/v1/upload-audio-chunks', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'multipart/form-data',
-                  'x-tenant-name': tenantName,
-                },
-                body: formData,
-              });
-
-              console.log(JSON.stringify(res));
-              console.log('Chunk uploaded successfully');
-              isUploaded = true;
-            } catch (err) {
-              retryCount++;
-              console.error(`Error uploading chunk, retrying... (${retryCount}/10)`, err);
-              if (retryCount >= 10) {
-                console.error('Max retries reached. Stopping upload for this chunk.');
-                break;
-              }
-              await new Promise((resolve) => setTimeout(resolve, 4000)); // Wait for 4 seconds before retrying
-            }
-          }
-
-          console.log('Recording stopped and stored at', uri);
-          console.log('Chunks:', chunks);
-        }
       } catch (err) {
         console.error('Error stopping recording', err);
       } finally {
         clearChunkTimer();
-        recordingRef.current = null;
+        resetRecordingState();
       }
-    }
-
-    // Process any new chunks added after stopping recording
-    await processUploadQueue();
-
-    // Wait for all chunks to be uploaded
-    let counter = 1;
-    while (chunks.length > 0 || chunkUploadPromises.length > 0) {
-      counter = counter + 1;
-      if (counter > 20) {
-        break;
-      }
-      await Promise.all(chunkUploadPromises);
-      await new Promise<void>((resolve) => {
-        console.log(chunks.length);
-        console.log(chunkUploadPromises.length);
-        console.log('Waiting for chunks to be uploaded...');
-        setTimeout(resolve, 1000);
-      }); // Wait for 1 second before checking again
-    }
-
-    // Call finalizeRecording to complete the process
-    finalizeRecording();
-  };
-
-  const finalizeRecording = async () => {
-    // Wait for any remaining uploads to complete
-    setIsLoading(true);
-
-    try {
-      console.log('Starting uploadStopRecording API');
-      await uploadStopRecording(tenantName);
-      Alert.alert('Upload Complete.');
-    } catch (error) {
-      console.error('Failed to stop recording', error);
-      Alert.alert('Error', 'Failed to stop recording and upload. Please try again.');
-    } finally {
-      setLoading(false); // Hide loader on the button
-      setLoadingMessage('');
     }
   };
 
   const resetRecordingState = () => {
+    recordingRef.current = null;
+    setLoading(false); // Hide loader on the button
+    setIsLoading(false);
+    setLoadingMessage('');
     setRecording(null);
     setIsRecording(false);
     setIsPaused(false);
     recordingRef.current = null;
+    recordingIdRef.current = null;
     isRecordingRef.current = false;
     setChunks([]);
     startTimeRef.current = null;
@@ -466,35 +412,10 @@ const AudioChunkUpload = () => {
     }
   };
 
-  const detectSilence = async () => {
-    if (!recordingRef.current) {
-      return;
-    }
-
-    let lastNonSilenceTime = Date.now();
-
-    while (isRecordingRef.current) {
-      const status = await recordingRef.current.getStatusAsync();
-      if (status.metering !== undefined) {
-        const currentLevel = status.metering;
-        setAudioLevel(currentLevel + 90);
-
-        if (currentLevel > silenceThreshold) {
-          lastNonSilenceTime = Date.now();
-        } else if (Date.now() - lastNonSilenceTime >= silenceDuration) {
-          // Detected a pause
-          // await chunkAudio();
-          lastNonSilenceTime = Date.now();
-        }
-      }
-      await new Promise((resolve) => setTimeout(resolve, 200)); // Check every 200ms
-    }
-  };
-
   const startChunkTimer = () => {
     chunkTimerRef.current = setInterval(async () => {
       if (isRecordingRef.current) {
-        await chunkAudio();
+        await chunkAudioAndStoreChunkInDisk(false);
       }
     }, maxChunkDuration);
   };
@@ -506,32 +427,221 @@ const AudioChunkUpload = () => {
     }
   };
 
-  const chunkAudio = async () => {
+  const stopAndUnloadRecording = async () => {
     if (!recordingRef.current) {
       return;
     }
 
+    await recordingRef.current.stopAndUnloadAsync();
+  };
+
+  const startNewRecording = async () => {
+    const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+    recordingRef.current = recording;
+    setRecording(recording);
+  };
+
+  const handleChunkFile = async (uri: string, chunkStartTime: number, chunkEndTime: number, chunkType: string) => {
+    console.log('Chunk file path is:', uri); // Log the file path
+  
+    const chunkFilePath = await moveChunkToDirectory(uri);
+  
+    if (recordingIdRef.current) {
+      await enqueueChunk(chunkFilePath, chunkStartTime, chunkEndTime, chunkType);
+    } else {
+      console.log('No recordingId');
+    }
+  
+    updateChunksState(chunkFilePath, chunkStartTime, chunkEndTime);
+  };
+
+  const moveChunkToDirectory = async (uri: string) => {
+    const chunksDir = FileSystem.documentDirectory + chunkFolder;
+    const dirInfo = await FileSystem.getInfoAsync(chunksDir);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(chunksDir);
+    }
+  
+    const chunkFileName = `chunk_${Date.now()}.m4a`;
+    const chunkFilePath = chunksDir + chunkFileName;
+  
+    await FileSystem.moveAsync({
+      from: uri,
+      to: chunkFilePath,
+    });
+  
+    return chunkFilePath;
+  };
+
+  const enqueueChunk = async (chunkFilePath: string, chunkStartTime: number, chunkEndTime: number, chunkType: string) => {
+    if (queue) {
+      queue.enqueue({
+        recordingId: recordingIdRef.current!,
+        startTime: chunkStartTime,
+        endTime: chunkEndTime,
+        chunkUri: chunkFilePath,
+        type: chunkType,
+      });
+    } else {
+      console.log('No queue');
+    }
+  };
+
+  const updateChunksState = (chunkFilePath: string, chunkStartTime: number, chunkEndTime: number) => {
+    if (recordingId) {
+      setChunks((prevChunks) => [
+        ...prevChunks,
+        { startTime: startTimeRef.current!, endTime: chunkEndTime, uri: chunkFilePath },
+      ]);
+    }
+  };
+
+  const chunkAudioAndStoreChunkInDisk = async (stopChunking: boolean) => {
+    if (!recordingRef.current) {
+      return;
+    }
+  
     try {
-      await recordingRef.current.stopAndUnloadAsync();
+      const chunkStartTime = startTimeRef.current!;
+      const chunkEndTime = Date.now();
+      startTimeRef.current = chunkEndTime;
+  
+      await stopAndUnloadRecording();
+      
+      let chunkType = 'ongoing';
+      if (!stopChunking) {
+        chunkType = 'ongoing';
+        await startNewRecording();
+      } else {
+        chunkType = 'final';
+      }
+  
       const uri = recordingRef.current.getURI();
       if (uri) {
-        console.log('Chunk file path:', uri); // Log the file path
-        const endTime = Date.now();
-        setChunks((prevChunks) => [
-          ...prevChunks,
-          { startTime: startTimeRef.current!, endTime, uri },
-        ]);
-        startTimeRef.current = endTime;
-
-        // Start a new recording for the next chunk
-        const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-        recordingRef.current = recording;
-        setRecording(recording);
+        await handleChunkFile(uri, chunkStartTime, chunkEndTime, chunkType);
       }
     } catch (err) {
       console.error('Error chunking audio', err);
     }
   };
+
+  const dequeueAndDeleteChunk = async (queue: any, chunkUri: string) => {
+    try {
+      await FileSystem.deleteAsync(chunkUri);
+      console.log('Chunk file deleted:', chunkUri);
+    } catch (error) {
+      console.log('Failed to delete chunk file:', error);
+    }
+    await queue.dequeue();
+  };
+  
+  const getChunkFileInfoByUri = async (uri: string): Promise<FileSystem.FileInfo | null> => {
+    const fileInfo = await FileSystem.getInfoAsync(uri);
+            
+    if (fileInfo.exists && !fileInfo.isDirectory) {
+      console.log(`File size: ${fileInfo.size} bytes`); 
+      return fileInfo;
+    } else {
+      console.log(`Chunk URI doesn't exist`);
+      return null;
+    }
+  }
+
+  const processPersistentQueue = async () => {
+    console.log(`processPersistentQueue`);
+    const MAX_EXECUTIONS = 5;
+  
+    for (let i = 0; i < MAX_EXECUTIONS; i++) {
+      if (queue && await queue.size() > 0) {
+        console.log(`Execution attempt ${i + 1}`);
+        await processPersistentChunk();
+      } else {
+        console.log('Queue empty.');
+      }
+    } 
+  }
+  
+  const processPersistentChunk = async () => {
+    console.log(`processPersistentChunk`);
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY = 2000; // 2 seconds
+  
+    if (queue) {
+      const item = await queue.peek(); // peek into queue. If there is an element, upload that. Then, dequeue.
+      const queueLength = await queue.size();
+  
+      if (item) {
+        const { recordingId, startTime, endTime, chunkUri } = item;
+  
+        console.log('Recording ID:', recordingId);
+        console.log('Chunk Start Time:', startTime);
+        console.log('Chunk End Time:', endTime);
+        console.log('Chunk URI:', chunkUri);
+  
+        const fileInfo = await getChunkFileInfoByUri(chunkUri);
+  
+        if (fileInfo) {
+          const formData = new FormData();
+          formData.append('file', {
+            uri: fileInfo.uri,
+            type: 'audio/m4a',
+            name: 'audio_chunk.m4a',
+          });
+  
+          formData.append('recordingId', recordingId);
+          formData.append('chunkStartTime', new Date(startTime).toUTCString());
+          formData.append('chunkEndTime', new Date(endTime).toUTCString());
+  
+          let attempt = 0;
+          let success = false;
+  
+          while (attempt < MAX_RETRIES && !success) {
+            try {
+              const res = await fetch('https://api.myhearing.app/server/v1/upload-audio-chunks', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'multipart/form-data',
+                  'x-tenant-name': tenantName,
+                },
+                body: formData,
+              });
+  
+              if (res.status === 200) {
+                console.log('Chunk uploaded successfully.');
+                await dequeueAndDeleteChunk(queue, chunkUri);
+                success = true;
+              } else if (res.status >= 500 || !navigator.onLine) {
+                console.log(res.statusText);
+                // Server-side error or no network
+                console.log('Server error or no network. Retrying...');
+              } else {
+                // Other errors
+                console.log('Failed to upload chunk.');
+                if (attempt === MAX_RETRIES - 1) {
+                  await dequeueAndDeleteChunk(queue, chunkUri);
+                }
+              }
+            } catch (error) {
+              console.log('Error uploading chunk:', error);
+              if (attempt === MAX_RETRIES - 1) {
+                await dequeueAndDeleteChunk(queue, chunkUri);
+              }
+            }
+  
+            if (!success) {
+              attempt++;
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            }
+          }
+        } else {
+          await queue.dequeue();
+          console.log('No such file found.');
+        }
+      }
+    } else {
+      console.log('Queue is null');
+    }
+  }
 
   const processUploadQueue = async () => {
     console.log("processUploadQueue");
@@ -589,9 +699,9 @@ const AudioChunkUpload = () => {
 
           } catch (err) {
             retryCount++;
-            console.error(`Error uploading chunk, retrying... (${retryCount}/10)`, err);
+            console.log(`Error uploading chunk, retrying... (${retryCount}/10)`, err);
             if (retryCount >= 10) {
-              console.error('Max retries reached. Stopping upload for this chunk.');
+              console.log('Max retries reached. Stopping upload for this chunk.');
               break;
             }
             await new Promise((resolve) => setTimeout(resolve, 4000)); // Wait for 4 seconds before retrying
@@ -756,4 +866,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AudioChunkUpload;
+export default RecordScreen;
