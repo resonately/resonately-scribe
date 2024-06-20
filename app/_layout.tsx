@@ -36,7 +36,11 @@ export default function RootLayout() {
                 <Stack.Screen name="LandingScreen" component={LandingScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="InviteScreen" component={InviteScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="LoginScreen" component={LoginScreen} options={{ headerShown: false }} />
-                <Stack.Screen name="BottomNav" options={{ headerShown: true }}>
+                <Stack.Screen name="BottomNav" options={{ 
+                  headerShown: true,
+                  title: '', // Set your custom title here
+                  headerLeft: () => '', // Disable the back button
+                  }}>
                   {props => (
                     <ProtectedRoute>
                       <BottomNav />

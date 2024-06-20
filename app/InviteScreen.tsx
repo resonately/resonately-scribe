@@ -14,6 +14,7 @@ const InviteScreen = () => {
   const [manualCode, setManualCode] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const { setTenantDetails } = useTenant();
+  const [cameraActive, setCameraActive] = useState(true);
 
   type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
   const navigation = useNavigation();
@@ -28,7 +29,7 @@ const InviteScreen = () => {
   }, []);
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
-    // setScanned(true);
+    setScanned(true);
     handleInviteCode(data);
   };
 
@@ -43,6 +44,8 @@ const InviteScreen = () => {
         if (result.data && result.data.tenantName) {
           // Store tenant details in context
           setTenantDetails(result.data);
+          // Turn off the camera before navigating to the next screen
+          setCameraActive(false);
 
           // Navigate to the login screen
           navigation.navigate('LoginScreen');
@@ -72,13 +75,14 @@ const InviteScreen = () => {
 
   return (
     <View style={styles.container}>
+      {cameraActive && (
       <CameraView
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{
           barcodeTypes: ['qr'],
         }}
         style={StyleSheet.absoluteFillObject}
-      />
+      />)}
       
       <View style={styles.topOverlay}>
         <Text style={styles.overlayText}>Scan Resonately QR</Text>

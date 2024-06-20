@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 interface TimerProps {
@@ -6,27 +6,38 @@ interface TimerProps {
   isPaused: boolean;
 }
 
-const Timer: React.FC<TimerProps> = ({ isRunning, isPaused }) => {
+const Timer: React.FC<TimerProps> = ({ isRunning = false, isPaused = false }) => {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const elapsedTimeRef = useRef(0); // To track the elapsed time when paused
+  const startTimeRef = useRef<number | null>(null);
+  const currentTimeRef = useRef(0);
+
+  const updateTime = () => {
+    setCurrentTime(Date.now() - (startTimeRef.current || 0));
+    currentTimeRef.current = Date.now() - (startTimeRef.current || 0);
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-
-    if (isRunning && !isPaused) {
-      if (!startTime) {
-        setStartTime(Date.now() - currentTime);
+    
+    if (isRunning) {
+      if (!startTimeRef.current) {
+        const initialStartTime = Date.now() - elapsedTimeRef.current;
+        setStartTime(initialStartTime);
+        startTimeRef.current = initialStartTime;
       }
 
-      interval = setInterval(() => {
-        setCurrentTime(Date.now() - (startTime || 0));
-      }, 10);
+      interval = setInterval(updateTime, 10);
     } else if (!isRunning) {
       if (interval) clearInterval(interval as NodeJS.Timeout);
       setCurrentTime(0); // Reset the timer when stopped
       setStartTime(null); // Reset start time
+      elapsedTimeRef.current = 0;
+      startTimeRef.current = null;
     } else if (isPaused) {
       if (interval) clearInterval(interval as NodeJS.Timeout);
+      elapsedTimeRef.current = currentTimeRef.current; // Store the elapsed time when paused
     }
 
     return () => {
@@ -34,7 +45,7 @@ const Timer: React.FC<TimerProps> = ({ isRunning, isPaused }) => {
         clearInterval(interval);
       }
     };
-  }, [isRunning, isPaused, startTime, currentTime]);
+  }, [isRunning, isPaused]);
 
   const formatTime = (time: number) => {
     const getHours = String(Math.floor(time / 3600000)).padStart(2, '0');
@@ -64,9 +75,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginVertical: 20,
-    marginTop: 100,
-    paddingHorizontal: 40,
-    paddingVertical: 10,
+    marginTop: 5,
+    paddingHorizontal: 30,
+    paddingVertical: 0,
     borderRadius: 10,
     backgroundColor: 'transparent', // Transparent background
     elevation: 4,
@@ -74,12 +85,12 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   timerText: {
-    fontSize: 40,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
   millisecondText: {
-    fontSize: 20, // Smaller font size for milliseconds
+    fontSize: 15, // Smaller font size for milliseconds
     fontWeight: 'normal',
     position: 'absolute',
     right: -0.01, // Adjust this value to place it correctly

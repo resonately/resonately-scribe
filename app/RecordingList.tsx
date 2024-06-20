@@ -6,7 +6,6 @@ interface Recording {
   startDate: string;
   endDate: string | null;
   status: string;
-  uploadProgress: number; // New property to hold the upload progress percentage
 }
 
 interface RecordingCardProps {
@@ -32,42 +31,38 @@ const RecordingCard = ({ recording }: RecordingCardProps): JSX.Element => {
           style={[
             styles.statusPill,
             recording.status === 'In Progress'
-              ? { backgroundColor: 'yellow' }
+              ? { backgroundColor: '#FFF176' }
+              : recording.status === 'Recording'
+              ? { backgroundColor: '#90CAF9' }
               : recording.status === 'Uploading'
-              ? { backgroundColor: 'orange' }
+              ? { backgroundColor: '#FFCC80' }
               : recording.status === 'Failed'
-              ? { backgroundColor: 'red' }
-              : { backgroundColor: '#4CAF50' },
+              ? { backgroundColor: '#EF9A9A' }
+              : { backgroundColor: '#77DD77' },
           ]}
         >
           <Text
             style={[
               styles.statusText,
-              recording.status === 'In Progress' || recording.status === 'Uploading'
-                ? { color: 'black' }
-                : { color: 'white' },
+              recording.status === 'In Progress' || recording.status === 'Recording' || recording.status === 'Uploading'
+                ? { color: '#212121' }
+                : { color: '#FFFFFF' },
             ]}
           >
             {recording.status}
           </Text>
         </View>
       </View>
-      <View style={styles.durationContainer}>
-        <Text style={styles.duration}>{durationText}</Text>
-        <View style={styles.progressBarBackground}>
-          <View style={[styles.progressBarFill, { width: `${recording.uploadProgress}%` }]} />
-        </View>
-      </View>
+      <Text style={styles.duration}>{durationText}</Text>
     </View>
   );
 };
 
 interface RecordingListProps {
   recordings: Recording[];
-  onDelete: (id: string) => void;
 }
 
-const RecordingList = ({ recordings, onDelete }: RecordingListProps): JSX.Element => {
+const RecordingList = ({ recordings }: RecordingListProps): JSX.Element => {
   if (recordings.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -91,9 +86,13 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
     margin: 8,
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
     elevation: 2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
   cardHeader: {
     flexDirection: 'row',
@@ -104,36 +103,20 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: '#424242',
   },
   statusPill: {
-    borderRadius: 12,
+    borderRadius: 16,
     paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
-  },
-  durationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   duration: {
     fontSize: 14,
-    color: '#555',
-  },
-  progressBarBackground: {
-    flex: 1,
-    height: 6,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 3,
-    marginLeft: 8,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 3,
+    color: '#757575',
   },
   emptyContainer: {
     flex: 1,
@@ -142,7 +125,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#888',
+    color: '#888888',
   },
 });
 
