@@ -438,14 +438,15 @@ const RecordingScreen = (): JSX.Element => {
     if (sessionCookie) {
       headers['Cookie'] = sessionCookie;
     }
-
+    console.log('stopRecordingOnServer');
+    console.log(endDate);
     try {
       const response = await fetch('https://api.myhearing.app/server/v1/stop-recording', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          recordingId,
-          endDate
+          recordingId: recordingId,
+          recordingEndTime: new Date().toISOString()
         }),
       });
 
