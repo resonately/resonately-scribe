@@ -66,7 +66,7 @@ const RecordingList = ({ recordings }: RecordingListProps): JSX.Element => {
   if (recordings.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Welcome! Start recording for a better day!</Text>
+        <Text style={styles.emptyText}>Ready to record.</Text>
       </View>
     );
   }
