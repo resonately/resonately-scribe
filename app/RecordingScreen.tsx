@@ -589,7 +589,7 @@ const RecordingScreen = (): JSX.Element => {
 
       if (!isProcessingRef.current) {
         isProcessingRef.current = true;
-        loadAndProcessChunks();
+        await loadAndProcessChunks();
         isProcessingRef.current = false;
       }
 
