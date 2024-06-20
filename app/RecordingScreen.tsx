@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Text, Alert, Button, ActivityIndicator, Animated } from 'react-native';
+import { View, StyleSheet, Text, Alert, ActivityIndicator, Animated } from 'react-native';
 import { Audio } from 'expo-av';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NetInfo from '@react-native-community/netinfo';
@@ -19,6 +19,7 @@ import {
 } from './RecordUtils';
 import { saveRecordings, loadRecordings, clearRecordings, displayRecordings } from './AsyncStorageUtils';
 import AnimatedSoundBars from '@/components/AnimatedSoundBars';
+import LogoutChecker from './LogoutChecker';
 
 interface Recording {
   id: string;
@@ -87,13 +88,13 @@ const RecordingScreen = (): JSX.Element => {
     try {
       await stopAndUnloadRecording(recordingRef.current);
       const localFileUri = await handleRecordingUri(recordingRef.current);
-      
+
       if (localFileUri) {
         const chunk = createChunk(localFileUri, chunkStartTimeRef.current!, new Date(), isLastChunk);
         await addChunkToAsyncStorage(chunk); // Add chunk to async storage
         incrementChunkCounter();
       }
-      
+
     } catch (error: any) {
       console.error(error.message);
     }
@@ -197,17 +198,17 @@ const RecordingScreen = (): JSX.Element => {
   const processChunks = async () => {
     console.log('processChunks');
     for (const recording of recordingsRef.current) {
+      let uploadSuccessful = false;
       if (recording.status !== 'Completed') {
         let hasCreatedChunks = false;
         // Sort chunks by position in ascending order
         recording.chunks.sort((a, b) => a.position - b.position);
-  
+
         for (const chunk of recording.chunks) {
           if (chunk.status === 'created') {
             console.log(chunk);
-            recording.status = 'Uploading';
             await saveUpdatedRecordingsState();
-  
+
             const uploadSuccess = await uploadChunk(chunk, recording.id, tenantName);
             if (!uploadSuccess) {
               break; // Stop processing further chunks if upload fails
@@ -215,10 +216,15 @@ const RecordingScreen = (): JSX.Element => {
             if (chunk.isLastChunk) {
               console.log('chunk.isLastChunk');
               console.log(chunk.isLastChunk);
+              recording.status = 'Uploading';
               if (!recording.endDate) {
                 recording.endDate = new Date().toISOString();
               }
-              await stopRecordingOnServer(recording.id, recording.endDate);
+              // bug here. you need to keep retrying this API call till it succeeds. Currently, if there's no internet or if in background, this is a silent failure. 
+              let uploadSuccessful = await stopRecordingOnServer(recording.id, recording.endDate);
+              if (uploadSuccessful) {
+                recording.status = 'Completed';
+              }
             }
           }
         }
@@ -236,7 +242,6 @@ const RecordingScreen = (): JSX.Element => {
       }
     }
   };
-  
 
   const uploadChunksPeriodically = async () => {
     uploadIntervalRef.current = setInterval(async () => {
@@ -452,11 +457,14 @@ const RecordingScreen = (): JSX.Element => {
 
       if (response.ok) {
         console.log('Recording stopped successfully on the server.');
+        return true;
       } else {
         console.error('Failed to stop recording on the server:', response.statusText);
+        return false;
       }
     } catch (error) {
       console.error('Error stopping recording on the server:', error);
+      return false;
     }
   };
 
@@ -467,7 +475,7 @@ const RecordingScreen = (): JSX.Element => {
   const handleRecordingUri = async (recording: Audio.Recording | null) => {
     if (recording) {
       const recordingUri = await getRecordingUri(recording);
-      if (recordingUri && recordingIdRef  && recordingIdRef.current) {
+      if (recordingUri && recordingIdRef && recordingIdRef.current) {
         return storeRecordingLocally(recordingUri, recordingIdRef.current);
       } else {
         throw new Error('Recording URI not found');
@@ -476,7 +484,6 @@ const RecordingScreen = (): JSX.Element => {
       throw new Error('Failed to unload recording');
     }
   };
-
 
   const createChunk = (localFileUri: string, chunkStartTime: Date, chunkEndTime: Date, isLastChunk: boolean): Chunk => {
     const recording = recordingsRef.current.find((rec) => rec.id === recordingIdRef.current);
@@ -513,7 +520,7 @@ const RecordingScreen = (): JSX.Element => {
   };
 
   const finalizeRecording = async () => {
-    
+
     recordingRef.current = null;
     bottomSheetRef.current?.snapToIndex(0); // Close the bottom drawer to 25%
     setStopLoading(false);
@@ -549,7 +556,7 @@ const RecordingScreen = (): JSX.Element => {
       bottomSheetRef.current?.snapToIndex(1); // Expand the bottom drawer to 40%
     } catch (err: any) {
       console.error('Failed to start recording', err);
-      Alert.alert('Error', err.message);
+      // Alert.alert('Error', err.message);
     } finally {
       updateStatus('Recording');
       setStartLoading(false);
@@ -568,21 +575,21 @@ const RecordingScreen = (): JSX.Element => {
         clearInterval(recordingIntervalRef.current);
       }
 
-    const recording = recordingsRef.current.find(rec => rec.id === recordingIdRef.current);
-    const endDate = new Date().toISOString();
+      const recording = recordingsRef.current.find(rec => rec.id === recordingIdRef.current);
+      const endDate = new Date().toISOString();
 
-    if (recording) {
-      updateStatus('Uploading');
-      recording.endDate = endDate;
-      updateRecordingsState([...recordingsRef.current]);
-      await saveRecordings(recordingsRef.current);
-    }
+      if (recording) {
+        updateStatus('Uploading');
+        recording.endDate = endDate;
+        updateRecordingsState([...recordingsRef.current]);
+        await saveRecordings(recordingsRef.current);
+      }
 
       await handleChunkCreation(true);
 
       if (!isProcessingRef.current) {
         isProcessingRef.current = true;
-        await loadAndProcessChunks();
+        loadAndProcessChunks();
         isProcessingRef.current = false;
       }
 
@@ -636,31 +643,36 @@ const RecordingScreen = (): JSX.Element => {
             <View style={styles.fabContainer}>
               {isRecording ? (
                 <>
-                  {/* <FAB
-                    style={[styles.fab, styles.muteButton]}
-                    icon={isPaused ? 'volume-high' : 'volume-off'}
-                    onPress={isPaused ? unmuteRecording : pauseRecording}
-                    disabled={buttonDisabled}
-                  /> */}
-                  <FAB
-                    style={[styles.fab, styles.stopButton]}
-                    icon="stop"
-                    onPress={stopRecording}
-                    disabled={buttonDisabled}
-                  />
+                  {stopLoading ? (
+                    <ActivityIndicator size="small" color="red" />
+                  ) : (
+                    <FAB
+                      style={[styles.fab, styles.stopButton]}
+                      icon="stop"
+                      onPress={stopRecording}
+                      disabled={buttonDisabled}
+                    />
+                  )}
                 </>
               ) : (
-                <FAB
-                    style={[styles.fab, styles.recordButton]}
-                    icon="microphone"
-                    onPress={startRecording}
-                    disabled={buttonDisabled}
-                  />
+                <>
+                  {startLoading ? (
+                    <ActivityIndicator size="small" color="red" />
+                  ) : (
+                    <FAB
+                      style={[styles.fab, styles.recordButton]}
+                      icon="microphone"
+                      onPress={startRecording}
+                      disabled={buttonDisabled}
+                    />
+                  )}
+                </>
               )}
             </View>
             <Timer isRunning={isRecording} isPaused={isPaused} />
           </View>
           <AnimatedSoundBars style={styles.soundBars} isAnimating={isRecording} volume={audioLevel} />
+          <LogoutChecker isRecordingInProgress={isRecording}></LogoutChecker>
         </View>
       </BottomSheet>
       {/* <Button title="Clear Recordings" onPress={clearAsyncStorage} /> */}
@@ -697,7 +709,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingBottom: 16,
-    
+    backgroundColor: '#f3edf6'
+
   },
   fabContainer: {
     flexDirection: 'row',
