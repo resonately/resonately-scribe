@@ -200,7 +200,6 @@ const RecordingScreen = (): JSX.Element => {
     for (const recording of recordingsRef.current) {
       let uploadSuccessful = false;
       if (recording.status !== 'Completed') {
-        let hasCreatedChunks = false;
         // Sort chunks by position in ascending order
         recording.chunks.sort((a, b) => a.position - b.position);
 
@@ -220,23 +219,23 @@ const RecordingScreen = (): JSX.Element => {
               if (!recording.endDate) {
                 recording.endDate = new Date().toISOString();
               }
-              // bug here. you need to keep retrying this API call till it succeeds. Currently, if there's no internet or if in background, this is a silent failure. 
-              let uploadSuccessful = await stopRecordingOnServer(recording.id, recording.endDate);
-              if (uploadSuccessful) {
-                recording.status = 'Completed';
-              }
             }
           }
         }
-
+        
+        let hasCreatedChunks = false;
         for (const chunk of recording.chunks) {
           if (chunk.status === 'created') {
             hasCreatedChunks = true;
+            break;
           }
         }
 
         if (!hasCreatedChunks && recording.chunks.length > 0 && recording.endDate) {
-          recording.status = 'Completed';
+          let uploadSuccessful = await stopRecordingOnServer(recording.id, recording.endDate);
+          if (uploadSuccessful) {
+            recording.status = 'Completed';
+          }
           await saveUpdatedRecordingsState();
         }
       }
