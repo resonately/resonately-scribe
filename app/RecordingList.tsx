@@ -1,5 +1,7 @@
 import React from 'react';
 import { FlatList, View, Text, StyleSheet } from 'react-native';
+import { format } from 'date-fns';
+import { enUS } from 'date-fns/locale';
 
 interface Recording {
   id: string;
@@ -23,10 +25,14 @@ const RecordingCard = ({ recording }: RecordingCardProps): JSX.Element => {
     ? `${Math.floor(durationInSeconds / 60)} m ${Math.floor(durationInSeconds % 60)} s`
     : `${Math.floor(durationInSeconds / 3600)} h ${Math.floor((durationInSeconds % 3600) / 60)} m ${Math.floor(durationInSeconds % 60)} s`;
 
+  const formattedDate = format(new Date(recording.startDate), "do MMMM yyyy, hh:mm:ss a", {
+    locale: enUS,
+  });
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.date}>{new Date(recording.startDate).toLocaleString()}</Text>
+        <Text style={styles.date}>{formattedDate}</Text>
         <View
           style={[
             styles.statusPill,

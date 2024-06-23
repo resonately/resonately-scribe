@@ -75,6 +75,7 @@ const RecordingScreen = (): JSX.Element => {
   const [isMounted, setIsMounted] = useState(true);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [initialStartTime, setInitialStartTime] = useState<number | null>(null);
+
   const theme = useTheme();
 
   const updateRecordingsState = (newRecordings: Recording[]) => {
@@ -86,6 +87,7 @@ const RecordingScreen = (): JSX.Element => {
     recordingIdRef.current = newRecordingId;
     setRecordingId(newRecordingId);
   };
+
 
   const handleChunkCreation = async (isLastChunk: boolean = false) => {
     try {
