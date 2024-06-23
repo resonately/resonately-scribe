@@ -1,23 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, Modal, TextInput, Button, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { Text } from 'react-native-paper';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, StyleSheet, Alert, TouchableOpacity, Modal, TouchableWithoutFeedback } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Text, TextInput, Button } from 'react-native-paper';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { Camera, CameraView } from 'expo-camera';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as SecureStore from 'expo-secure-store';
 import { RootStackParamList } from './_layout'; // Adjust the path according to your project structure
-import { useTenant } from './TenantContext';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { err } from 'react-native-svg';
+import { useAuth } from './AuthContext';
+
 
 const InviteScreen = () => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [manualCode, setManualCode] = useState('');
+  const { setTenantDetails } = useAuth();
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const { setTenantDetails } = useTenant();
   const [cameraActive, setCameraActive] = useState(true);
+  const bottomSheetRef = useRef<BottomSheet>(null);
 
   type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
-  const navigation = useNavigation();
+  const navigation = useNavigation<LoginScreenNavigationProp>();
 
   useEffect(() => {
     const getCameraPermissions = async () => {
@@ -27,6 +32,15 @@ const InviteScreen = () => {
 
     getCameraPermissions();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setCameraActive(true);
+      return () => {
+        setCameraActive(false);
+      };
+    }, [])
+  );
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
     setScanned(true);
@@ -42,6 +56,8 @@ const InviteScreen = () => {
       const result = await response.json();
       if (response.ok) {
         if (result.data && result.data.tenantName) {
+          console.log('Storing Tenant Details');
+          console.log(result.data);
           // Store tenant details in context
           setTenantDetails(result.data);
           // Turn off the camera before navigating to the next screen
@@ -53,7 +69,7 @@ const InviteScreen = () => {
           Alert.alert('Error', 'No tenant found with that invite code.');
         }
       } else {
-        Alert.alert('Error', result.message || 'Failed to fetch tenant details');
+        Alert.alert('Invite code required.', response.statusText || 'Please share an invite code.');
       }
     } catch (error) {
       console.error('Error fetching tenant details:', error);
@@ -76,14 +92,15 @@ const InviteScreen = () => {
   return (
     <View style={styles.container}>
       {cameraActive && (
-      <CameraView
+        <CameraView
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{
           barcodeTypes: ['qr'],
         }}
         style={StyleSheet.absoluteFillObject}
-      />)}
-      
+      />
+      )}
+
       <View style={styles.topOverlay}>
         <Text style={styles.overlayText}>Scan Resonately QR</Text>
       </View>
@@ -96,30 +113,54 @@ const InviteScreen = () => {
       </View>
 
       <View style={styles.overlay}>
-        <Button title="Enter Code Manually" onPress={() => setIsModalVisible(true)} />
+        <Button mode="outlined" onPress={() => {
+          console.log("Enter Code Manually clicked.");
+          setIsModalVisible(true);
+        }}>
+          Enter Code Manually
+        </Button>
       </View>
-      
+
       <Modal
         transparent={true}
         visible={isModalVisible}
         onRequestClose={() => setIsModalVisible(false)}
       >
-        <TouchableOpacity style={styles.modalContainer} activeOpacity={1} onPressOut={() => setIsModalVisible(false)}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Enter Invite Code</Text>
-            <TextInput
-              style={styles.input}
-              value={manualCode}
-              onChangeText={(text) => setManualCode(text.toUpperCase())}
-              autoCapitalize="characters"
-            />
-            <Button title="Submit" onPress={handleManualSubmit} />
+        <TouchableWithoutFeedback onPress={() => setIsModalVisible(false)}>
+          <View style={styles.modalContainer}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Enter Invite Code</Text>
+                <TextInput
+                  mode="outlined"
+                  label="Invite Code"
+                  value={manualCode}
+                  onChangeText={(text) => setManualCode(text)}
+                  style={styles.input}
+                  onSubmitEditing={handleManualSubmit}
+                />
+                <Button
+                  mode="outlined"
+                  onPress={handleManualSubmit}
+                  style={styles.button}
+                  contentStyle={styles.buttonContent}
+                  labelStyle={styles.buttonLabel}
+                  uppercase={false}
+                >
+                  Submit
+                </Button>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </TouchableOpacity>
+        </TouchableWithoutFeedback>
       </Modal>
-      
+
+
+
       {scanned && (
-        <Button title="Tap to Scan Again" onPress={() => setScanned(false)} />
+        <Button mode="outlined" onPress={() => setScanned(false)}>
+          Tap to Scan Again
+        </Button>
       )}
     </View>
   );
@@ -129,6 +170,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: '80%', // Increase the width
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    marginBottom: 10,
+  },
+  input: {
+    width: '100%', // Increase the width
+    marginBottom: 20,
+  },
+  button: {
+    width: '100%',
+    borderRadius: 30,
+    borderColor: '#2196F3', // Blue border
+    borderWidth: 1,
+  },
+  buttonContent: {
+    paddingVertical: 10,
+  },
+  buttonLabel: {
+    color: '#2196F3', // Blue text color
+    fontSize: 18,
+    fontWeight: '600',
   },
   topOverlay: {
     position: 'absolute',
@@ -200,41 +276,13 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderBottomWidth: 2,
   },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    width: 300,
+  bottomSheetContent: {
     padding: 20,
     backgroundColor: 'white',
-    borderRadius: 10,
-    alignItems: 'center',
   },
-  modalTitle: {
+  bottomSheetTitle: {
     fontSize: 18,
     marginBottom: 10,
-  },
-  input: {
-    width: '100%',
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  closeButton: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#2196F3',
-    borderRadius: 5,
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 16,
   },
 });
 

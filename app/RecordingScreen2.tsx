@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Text, Alert, ActivityIndicator, Animated, AppState, AppStateStatus } from 'react-native';
+import { View, StyleSheet, Text, Alert, Animated, AppState, AppStateStatus } from 'react-native';
 import { Audio } from 'expo-av';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NetInfo from '@react-native-community/netinfo';
@@ -7,9 +7,9 @@ import RecordingList from './RecordingList';
 import RecordingButton from './RecordingButton';
 import { useKeepAwake } from 'expo-keep-awake';
 import * as SecureStore from 'expo-secure-store';
-import { useTenant } from './TenantContext';
+import { useAuth } from './AuthContext';
 import Timer from '@/components/Timer';
-import { FAB, Icon, useTheme } from 'react-native-paper';
+import { FAB, IconButton, useTheme, ActivityIndicator } from 'react-native-paper';
 import {
   getRecordingUri,
   storeRecordingLocally,
@@ -50,7 +50,7 @@ const MAX_DIR_AGE = 2 * 24 * 60 * 60 * 1000; // 10 days
 const RecordingScreen = (): JSX.Element => {
   useKeepAwake(); // Keeps the app awake while this component is mounted
 
-  const { tenantName } = useTenant().tenantDetails;
+  const { tenantName } = useAuth().tenantDetails;
 
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false); // New state for pause
@@ -392,6 +392,7 @@ const RecordingScreen = (): JSX.Element => {
 
   const startAudioRecording = async () => {
     console.log('Starting recording...');
+    
     const { recording } = await Audio.Recording.createAsync(
       Audio.RecordingOptionsPresets.HIGH_QUALITY
     );
@@ -524,6 +525,13 @@ const RecordingScreen = (): JSX.Element => {
   };
 
   const initializeRecording = async () => {
+    if (recordingRef.current) {
+      // Stop any ongoing recording before starting a new one
+      await handleChunkCreation(true); // Finalize the last chunk of the ongoing recording
+      recordingRef.current = null;
+      setIsRecording(false);
+    }
+    
     await requestPermissions();
     const newRecordingId = await createLocalRecording();
     updateRecordingId(newRecordingId); // Set the recordingId state
@@ -534,11 +542,13 @@ const RecordingScreen = (): JSX.Element => {
     setInitialStartTime(Date.now());
     setIsRecording(true);
   };
+  
 
   const startRecording = async () => {
     try {
       setStartLoading(true);
       setButtonDisabled(true); // Disable the button immediately when clicked
+      setIsPaused(false); // Reset mute button state to not muted
 
       await initializeRecording();
 
@@ -643,156 +653,182 @@ const RecordingScreen = (): JSX.Element => {
 
   return (
     <View style={styles.container}>
-        {!isConnected && (
-            <View style={styles.connectionBar}>
-                <Text style={styles.connectionText}>No Internet Connection</Text>
+      {!isConnected && (
+        <View style={styles.connectionBar}>
+          <Text style={styles.connectionText}>No Internet Connection</Text>
+        </View>
+      )}
+      {isMounted && (
+        <>
+          <RecordingList recordings={recordings} />
+          <BottomSheet
+            ref={bottomSheetRef}
+            index={0} // Start at the first snap point (25%)
+            snapPoints={['20%']}
+            onChange={(index) => {
+              if (index < 0) {
+                bottomSheetRef.current?.snapToIndex(0);
+              }
+            }}
+          >
+            <View style={[styles.bottomSheet, { backgroundColor: theme.colors.background }]}>
+              <View style={styles.buttonContainer}>
+                <View style={styles.fabContainer}>
+                  {isRecording ? (
+                    <>
+                      <FAB
+                        style={[
+                          styles.fab,
+                          styles.stopButton,
+                          styles.endVisitButton, // Apply fixed width style
+                          buttonDisabled && styles.disabledButton
+                        ]}
+                        icon="stop"
+                        onPress={stopRecording}
+                        disabled={buttonDisabled}
+                        label="End Visit"
+                        color="red" // Set the icon color conditionally
+                      />
+                      <View style={styles.timerContainer}>
+                        <Timer isRunning={isRecording} isPaused={isPaused} initialStartTime={initialStartTime} />
+                      </View>
+                    </>
+                  ) : (
+                    <FAB
+                      style={[
+                        styles.fab,
+                        styles.fullWidthFab, // Apply full width style
+                        { backgroundColor: theme.colors.primary },
+                        buttonDisabled && styles.disabledButton
+                      ]}
+                      icon={buttonDisabled ? () => <ActivityIndicator animating={true} color="white" /> : "plus"}
+                      onPress={startRecording}
+                      disabled={buttonDisabled}
+                      label={buttonDisabled ? "" : "Start Appointment"}
+                      color="white"
+                    />
+                  )}
+                  {isRecording && (
+                    <FAB
+                      style={[
+                        styles.muteButton,
+                        isPaused ? styles.muted : null,
+                      ]}
+                      icon={isPaused ? "microphone-off" : "microphone"}
+                      onPress={isPaused ? unmuteRecording : muteRecording}
+                      color={isPaused ? "red" : "black"} // Set the icon color conditionally
+                    />
+                  )}
+                </View>
+              </View>
+              {/* <LogoutChecker isRecordingInProgress={isRecording}></LogoutChecker> */}
             </View>
-        )}
-        {isMounted && (
-            <>
-                <RecordingList recordings={recordings} />
-                <BottomSheet
-                    ref={bottomSheetRef}
-                    index={0} // Start at the first snap point (25%)
-                    snapPoints={['25%']}
-                    onChange={(index) => {
-                        if (index < 0) {
-                            bottomSheetRef.current?.snapToIndex(0);
-                        }
-                    }}
-                >
-                    <View style={styles.bottomSheet}>
-                        <View style={styles.buttonContainer}>
-                            <View style={styles.fabContainer}>
-                                {isRecording ? (
-                                    <>
-                                        <FAB
-                                            style={[styles.fab, styles.stopButton, buttonDisabled && styles.disabledButton]}
-                                            icon="stop"
-                                            onPress={stopRecording}
-                                            disabled={buttonDisabled}
-                                            label="End Visit"
-                                            color={"red"} // Set the icon color conditionally
-                                        />
-                                        <View style={styles.timerContainer}>
-                                            <Timer isRunning={isRecording} isPaused={isPaused} initialStartTime={initialStartTime} />
-                                        </View>
-                                    </>
-                                ) : (
-                                    <FAB
-                                        style={[styles.fab, styles.startButton, buttonDisabled && styles.disabledButton]}
-                                        icon="plus"
-                                        onPress={startRecording}
-                                        disabled={buttonDisabled}
-                                        label="Start Visit"
-                                    />
-                                )}
-                                {isRecording && (
-                                    // <FAB
-                                    //     style={[styles.fab, styles.muteButton, isPaused && styles.muted]}
-                                    //     icon={isPaused ? "microphone-off" : "microphone"}
-                                    //     onPress={isPaused ? unmuteRecording : pauseRecording}
-                                    // />
-                                    <FAB
-                                      style={[
-                                        styles.muteButton,
-                                        isPaused ? styles.muted : null,
-                                      ]}
-                                      icon={isPaused ? "microphone-off" : "microphone"}
-                                      onPress={isPaused ? unmuteRecording : muteRecording}
-                                      color={isPaused ? "red" : "black"} // Set the icon color conditionally
-                                    />
-                                )}
-                            </View>
-                        </View>
-                        <LogoutChecker isRecordingInProgress={isRecording}></LogoutChecker>
-                    </View>
-                </BottomSheet>
-            </>
-        )}
+          </BottomSheet>
+        </>
+      )}
     </View>
-  );
+  );  
 };
 
 const styles = StyleSheet.create({
   container: {
-      flex: 1,
-      backgroundColor: '#f0f0f0',
+    flex: 1,
+    backgroundColor: '#f0f0f0',
   },
   connectionBar: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      height: 30,
-      backgroundColor: '#FFC107', // Yellow color for "No Internet"
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000, // Make sure the bar is above other elements
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+    backgroundColor: '#FFC107', // Yellow color for "No Internet"
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000, // Make sure the bar is above other elements
   },
   connectionText: {
-      color: '#fff',
-      fontWeight: 'bold',
+    color: '#fff',
+    fontWeight: 'bold',
   },
   buttonContainer: {
-      flexDirection: 'column',
-      alignItems: 'center',
-      marginTop: 30,
-      paddingHorizontal: 0,
-      position: 'relative',
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginTop: 30,
+    paddingHorizontal: 0,
+    position: 'relative',
   },
   bottomSheet: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-      paddingBottom: 6,
-      backgroundColor: '#f3edf6',
-  },
-  fabContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      width: '100%',
-      paddingHorizontal: 20, // Add horizontal padding
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingBottom: 6,
   },
   fab: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    height: 56, // Set a fixed height for the FAB
+  },
+  fullWidthFab: {
+    width: '100%', // Ensure the FAB takes the full width
+  },
+  fabContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
   },
   startButton: {
-      color: 'white',
+    color: 'white',
   },
+  endVisitButton: {
+    width: '40%', // Fixed smaller width for the end visit button
+    justifyContent: 'center', // Center the content vertically
+  },
+  
   stopButton: {
-      backgroundColor: 'white',
-      borderColor: 'red',
-      borderWidth: 2,
-      color: 'red',
-  },
-  timerContainer: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 10, // Add margin to separate from the button
-      width: 160, // Set a fixed width to avoid shaking
-  },
-  muteButton: {
-      backgroundColor: 'white',
-      borderColor: 'gray',
-      borderWidth: 1,
-      color: 'black',
-      borderRadius: 50,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 10, // Add padding for rounded effect
+    backgroundColor: 'white',
+    borderColor: 'red',
+    borderWidth: 2,
+    color: 'red',
+    marginVertical: 10, // Add vertical margin to separate from other elements
+    justifyContent: 'center', // Center the content vertically
   },
   muted: {
-      borderColor: 'red',
-      color: 'red',
+    borderColor: 'red',
+    color: 'red',
   },
   soundBars: {
-      marginTop: 20,
+    marginTop: 20,
   },
   disabledButton: {
-      opacity: 0.6,
+    opacity: 0.6,
+  },
+  fabContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center', // Center the button
+    width: '100%',
+    paddingHorizontal: 40, // Add horizontal padding
+    marginTop: 10, // Ensure all elements start from the same vertical position
+  },
+  
+  timerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0, // Remove extra margin
+    width: '50%', // Set a fixed width to avoid shaking
+  },
+  
+  muteButton: {
+    backgroundColor: 'white',
+    borderColor: 'gray',
+    borderWidth: 1,
+    color: 'black',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 0, // Add padding for rounded effect
+    width: '20%', // Ensure it does not exceed screen width
+    marginVertical: 0, // Remove extra margin
   },
 });
+
 export default RecordingScreen;

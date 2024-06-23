@@ -10,11 +10,11 @@
     "splash": {
       "image": "./assets/images/resonately-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#015B4F"
+      "backgroundColor": "#2094fc"
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "19",
+      "buildNumber": "21",
       "bundleIdentifier": "com.myhearingapp.AIScribeApp",
       "icon": "./assets/images/resonately-icon-1024.png",
       "infoPlist": {
@@ -31,7 +31,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/resonately-icon.png",
-        "backgroundColor": "#015B4F"
+        "backgroundColor": "#2094fc"
       }
     },
     "web": {

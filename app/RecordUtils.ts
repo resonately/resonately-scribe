@@ -128,6 +128,10 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
   const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
   const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
 
+  console.log('Session Cookie:', sessionCookie);
+  console.log('User Email:', userEmail);
+  console.log('Tenant Name:', tenantName);
+
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
   };
@@ -152,7 +156,7 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
   formData.append('chunkEndTime', new Date(endTime).toUTCString());
 
   const MAX_RETRIES = 5;
-  const RETRY_DELAY = 2000; // 1 second
+  const RETRY_DELAY = 2000; // 2 seconds
   let attempt = 0;
   let success = false;
 
@@ -168,13 +172,18 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
         console.log('Chunk uploaded successfully.');
         success = true;
         return true;
+      } else if (response.status === 403) {
+        console.log('403 Forbidden: Check session cookie and user permissions.');
+        // Additional logging can be added here to understand the issue better
+        const responseBody = await response.text();
+        console.log('Response body:', responseBody);
+        return false;
       } else if (response.status >= 500 || !navigator.onLine) {
-        console.log(JSON.stringify(response));
-        // Server-side error or no network
         console.log('Server error or no network. Retrying...');
       } else {
-        // Other errors
-        console.log('Failed to upload chunk.');
+        console.log('Failed to upload chunk. Status:', response.status);
+        const responseBody = await response.text();
+        console.log('Response body:', responseBody);
       }
     } catch (error) {
       console.error('Error uploading chunk:', error);

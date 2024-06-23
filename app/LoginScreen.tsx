@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { Text, TextInput, Button } from 'react-native-paper';
+import { Text, TextInput, Button, Checkbox, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as SecureStore from 'expo-secure-store';
 import { RootStackParamList } from './_layout'; // Adjust the path according to your project structure
 import { useAuth } from './AuthContext'; // Import the Auth context
-import { useTenant } from './TenantContext'; // Import the Tenant context
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
@@ -15,15 +14,25 @@ const LoginScreen = () => {
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const navigation = useNavigation<LoginScreenNavigationProp>();
-  const { login } = useAuth(); // Get the login function from Auth context
-  const { tenantDetails } = useTenant(); // Get the tenant details from Tenant context
+  const { login, tenantDetails, setTenantDetails } = useAuth(); // Get the login function from Auth context
+  const theme = useTheme();
 
   useEffect(() => {
-    if (!tenantDetails || !tenantDetails?.tenantName) {
-      navigation.navigate('InviteScreen'); // Replace with your actual navigation
-    }
-  }, [tenantDetails, navigation]);
+    const loadCredentials = async () => {
+      const savedEmail = await SecureStore.getItemAsync('email');
+      const savedPassword = await SecureStore.getItemAsync('password');
+      const savedRememberMe = await SecureStore.getItemAsync('rememberMe');
+      if (savedEmail && savedPassword && savedRememberMe === 'true') {
+        setEmail(savedEmail);
+        setPassword(savedPassword);
+        setRememberMe(true);
+      }
+    };
+
+    loadCredentials();
+  }, []);
 
   const validateEmail = (email: string) => {
     const re = /\S+@\S+\.\S+/;
@@ -41,95 +50,33 @@ const LoginScreen = () => {
     setLoading(true); // Start loading
 
     try {
-      const response = await fetch('https://api.myhearing.app/oms/v1/api/method/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-tenant-name': tenantDetails?.tenantName || 'mysite',
-        },
-        body: JSON.stringify({ usr: email, pwd: password }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Store the session token or cookie in SecureStore
-        const setCookieHeader = response.headers.get('set-cookie');
-        
-        if (setCookieHeader) {
-          const expiryMatch = setCookieHeader?.match(/expires=([^;]+);?/i);
-
-          let expiryDate = new Date(Date.now() + 5 * 3600 * 1000); // Default to 5 hour if no expiry;
-          console.log("expiryMatch");
-          if (expiryMatch && expiryMatch[1]) {
-            const expiresString = expiryMatch[1];
-            const expiresDate = new Date(expiresString);
-
-            expiryDate =  expiresDate;
-            
-            console.log('Expires String:', expiresString); // Outputs: Expires String: Sun, 23 Jun 2024 22:12:38 GMT
-            console.log('Expires Date:', expiresDate); 
-          }
-          
-          await SecureStore.setItemAsync('sessionCookie', setCookieHeader);
-          await SecureStore.setItemAsync('sessionExpiry', expiryDate.toISOString());
-          
-          // await SecureStore.setItemAsync('userEmail', email);
-          // await SecureStore.setItemAsync('password', password);
+      const loggedIn = await login(email, password, rememberMe);
+      if (!loggedIn) {
+        Alert.alert('Login unsuccessful.');
+      } else {
+        if (rememberMe) {
+          await SecureStore.setItemAsync('rememberMe', 'true');
+        } else {
+          await SecureStore.setItemAsync('rememberMe', 'false');
         }
-
-        const userEmail = await getUserDetails(await SecureStore.getItemAsync('sessionCookie'));
-        
-        await SecureStore.setItemAsync('sessionUserEmail', userEmail);
-
-        // Perform your post-authentication logic here, like saving the token
-        login(); // Set the authenticated state
-        navigation.navigate('BottomNav'); // Navigate to the next screen
-      } else {
-        const errorData = await response.json();
-        Alert.alert('Login failed', errorData.message);
       }
     } catch (error) {
-      console.error('Login error', error);
-      Alert.alert('Login failed', 'An error occurred. Please try again.');
+      Alert.alert('Login unsuccessful.');
     } finally {
-      setLoading(false); // Stop loading
+      setLoading(false);
     }
-  };
-
-  const getUserDetails = async (cookies: any) => {
-    try {
-      const response = await fetch('https://api.myhearing.app/oms/v1/api/method/frappe.auth.get_logged_user', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': cookies,
-          'x-tenant-name': tenantDetails?.tenantName
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        return result.message; // This will contain the user's details
-
-      } else {
-        const result = await response.json();
-        throw new Error(result.message);
-      }
-    } catch (error) {
-      console.error('Failed to fetch user details:', JSON.stringify(error));
-      throw error;
-    }
-  };
+  }
 
   const handleReselectClinic = () => {
     // Handle clinic reselection logic here
-    navigation.navigate('InviteScreen'); // Replace with your actual navigation
+    setTenantDetails(null);
+    // navigation.navigate('InviteScreen'); // Replace with your actual navigation
   };
 
   return (
-    <View style={styles.container}>
-      <Text variant="headlineLarge" style={styles.welcomeText}>{tenantDetails?.tenantTitle}</Text>
-      <Text variant="titleMedium" style={styles.titleText}>Login to your account</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Text variant="headlineLarge" style={[styles.welcomeText, { color: theme.colors.primary }]}>{tenantDetails?.tenantTitle}</Text>
+      <Text variant="titleMedium" style={[styles.titleText, { color: theme.colors.onSurface }]}>Login to your account</Text>
       <TextInput
         mode="outlined"
         label="Email"
@@ -141,7 +88,7 @@ const LoginScreen = () => {
         style={styles.input}
         onSubmitEditing={() => handleLogin()} // Trigger login on return key press
       />
-      {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+      {emailError ? <Text style={[styles.errorText, { color: theme.colors.error }]}>{emailError}</Text> : null}
       <TextInput
         mode="outlined"
         label="Password"
@@ -151,8 +98,21 @@ const LoginScreen = () => {
         style={styles.input}
         onSubmitEditing={() => handleLogin()} // Trigger login on return key press
       />
+      <View style={styles.checkboxContainer}>
+        <TouchableOpacity 
+          onPress={() => setRememberMe(!rememberMe)} 
+          style={styles.checkboxTouchable}
+        >
+          <Checkbox
+            status={rememberMe ? 'checked' : 'unchecked'}
+            color={theme.colors.primary}
+            uncheckedColor={theme.colors.primary} // Set color for unchecked state
+          />
+          <Text style={[styles.checkboxLabel, { color: theme.colors.onSurface }]}>Remember me</Text>
+        </TouchableOpacity>
+      </View>
       {loading ? (
-        <ActivityIndicator size="large" color="#3949ab" style={styles.loader} />
+        <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
       ) : (
         <Button
           mode="contained"
@@ -161,13 +121,12 @@ const LoginScreen = () => {
           contentStyle={styles.buttonContent}
           labelStyle={styles.buttonLabel}
           uppercase={false}
-          theme={{ colors: { primary: '#3949ab' } }}
         >
           Login
         </Button>
       )}
       <TouchableOpacity onPress={handleReselectClinic}>
-        <Text style={styles.reselectText}>Not your clinic? <Text style={styles.reselectLink}>Go back</Text></Text>
+        <Text style={[styles.reselectText, { color: theme.colors.onSurface }]}>Not your clinic? <Text style={[styles.reselectLink, { color: theme.colors.primary }]}>Go back</Text></Text>
       </TouchableOpacity>
     </View>
   );
@@ -178,18 +137,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#e8eaf6',
     paddingHorizontal: 20,
   },
   welcomeText: {
     fontSize: 30,
     fontWeight: 'bold',
-    color: '#1a237e',
     marginBottom: 50,
   },
   titleText: {
     fontSize: 20,
-    color: '#303f9f',
     marginBottom: 30,
   },
   input: {
@@ -197,14 +153,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   errorText: {
-    color: '#d32f2f',
     marginBottom: 10,
   },
   button: {
     width: '100%',
     marginTop: 20,
     borderRadius: 30,
-    backgroundColor: '#3949ab',
     elevation: 5, // Add elevation for shadow effect
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -223,14 +177,27 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: 20,
   },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    height: 40, // Ensure it has height
+    justifyContent: 'flex-start', // Align to the right
+    width: '100%', // Ensure it takes full width
+  },
+  checkboxLabel: {
+    marginLeft: 8,
+  },
   reselectText: {
     marginTop: 20,
-    color: '#1a237e',
     fontSize: 14,
   },
   reselectLink: {
-    color: '#3949ab',
     fontWeight: 'bold',
+  },
+  checkboxTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 
