@@ -2,7 +2,7 @@
   "expo": {
     "name": "Resonately for Clinics",
     "slug": "AIScribeApp",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/resonately-icon-1024.png",
     "scheme": "myapp",
@@ -14,15 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "12",
+      "buildNumber": "19",
       "bundleIdentifier": "com.myhearingapp.AIScribeApp",
       "icon": "./assets/images/resonately-icon-1024.png",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "We need access to your microphone to record your voice.",
         "UIBackgroundModes": [
           "audio",
-          "fetch",
-          "remote-notification"
+          "fetch"
         ],
         "entitlements": {
           "aps-environment": "production"

@@ -1,51 +1,94 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, AppState, AppStateStatus } from 'react-native';
 
 interface TimerProps {
   isRunning: boolean;
   isPaused: boolean;
+  initialStartTime: number | null;
 }
 
-const Timer: React.FC<TimerProps> = ({ isRunning = false, isPaused = false }) => {
-  const [startTime, setStartTime] = useState<number | null>(null);
+const Timer: React.FC<TimerProps> = ({ isRunning = false, isPaused = false, initialStartTime = null }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const elapsedTimeRef = useRef(0); // To track the elapsed time when paused
-  const startTimeRef = useRef<number | null>(null);
-  const currentTimeRef = useRef(0);
+  const startTimeRef = useRef<number | null>(initialStartTime);
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  const frameRef = useRef<number | null>(null);
 
-  const updateTime = () => {
+  const updateTime = useCallback(() => {
     setCurrentTime(Date.now() - (startTimeRef.current || 0));
-    currentTimeRef.current = Date.now() - (startTimeRef.current || 0);
-  };
+    frameRef.current = requestAnimationFrame(updateTime);
+  }, []);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    
-    if (isRunning) {
-      if (!startTimeRef.current) {
-        const initialStartTime = Date.now() - elapsedTimeRef.current;
-        setStartTime(initialStartTime);
-        startTimeRef.current = initialStartTime;
-      }
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
-      interval = setInterval(updateTime, 10);
-    } else if (!isRunning) {
-      if (interval) clearInterval(interval as NodeJS.Timeout);
-      setCurrentTime(0); // Reset the timer when stopped
-      setStartTime(null); // Reset start time
+  const handleAppStateChange = (nextAppState: AppStateStatus) => {
+    if (appState.match(/inactive|background/) && nextAppState === 'active') {
+      console.log('App has come to the foreground!');
+      if (isRunning) {
+        startTimer();
+      }
+    }
+
+    if (nextAppState === 'background') {
+      console.log('App is in the background');
+      stopTimer();
+    }
+
+    setAppState(nextAppState);
+  };
+
+  const startTimer = useCallback(() => {
+    if (!startTimeRef.current) {
+      const initialStartTime = Date.now() - elapsedTimeRef.current;
+      startTimeRef.current = initialStartTime;
+    }
+    frameRef.current = requestAnimationFrame(updateTime);
+  }, [updateTime]);
+
+  const stopTimer = useCallback(() => {
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialStartTime === null) {
+      setCurrentTime(0);
       elapsedTimeRef.current = 0;
       startTimeRef.current = null;
-    } else if (isPaused) {
-      if (interval) clearInterval(interval as NodeJS.Timeout);
-      elapsedTimeRef.current = currentTimeRef.current; // Store the elapsed time when paused
+      stopTimer();
+      return;
+    }
+
+    if (startTimeRef.current !== initialStartTime) {
+      startTimeRef.current = initialStartTime;
+      setCurrentTime(0);
+      elapsedTimeRef.current = 0;
+    }
+
+    if (isRunning && appState === 'active') {
+      startTimer();
+    } else {
+      stopTimer();
+      if (!isRunning) {
+        setCurrentTime(0); // Reset the timer when stopped
+        elapsedTimeRef.current = 0;
+        startTimeRef.current = null;
+      } else if (isPaused) {
+        elapsedTimeRef.current = Date.now() - (startTimeRef.current || 0); // Store the elapsed time when paused
+      }
     }
 
     return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
+      stopTimer();
     };
-  }, [isRunning, isPaused]);
+  }, [isRunning, isPaused, appState, initialStartTime, startTimer, stopTimer]);
 
   const formatTime = (time: number) => {
     const getHours = String(Math.floor(time / 3600000)).padStart(2, '0');
@@ -63,9 +106,9 @@ const Timer: React.FC<TimerProps> = ({ isRunning = false, isPaused = false }) =>
       <Text style={styles.timerText}>
         {getHours}:{getMinutes}:{getSeconds}
       </Text>
-      <Text style={styles.millisecondText}>
+      {/* <Text style={styles.millisecondText}>
         .{getMilliseconds}
-      </Text>
+      </Text> */}
     </View>
   );
 };

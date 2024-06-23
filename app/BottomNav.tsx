@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BottomNavigation } from 'react-native-paper';
-import RecordScreen from './RecordScreen'; // Ensure this points to your Record screen
-import RecordingScreen from './RecordingScreen'; // Ensure this points to your Record screen
+// import RecordScreen from './RecordScreen'; // Ensure this points to your Record screen
+import RecordingScreen from './RecordingScreen2'; // Ensure this points to your Record screen
 import ProfileScreen from './ProfileScreen'; // Ensure this points to your Profile screen
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
