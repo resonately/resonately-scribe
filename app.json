@@ -14,9 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "21",
+      "buildNumber": "24",
       "bundleIdentifier": "com.myhearingapp.AIScribeApp",
-      "googleServicesFile": "./GoogleService-Info.plist",
       "icon": "./assets/images/resonately-icon-1024.png",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "We need access to your microphone to record your voice.",
@@ -30,7 +29,6 @@
       }
     },
     "android": {
-      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/resonately-icon.png",
         "backgroundColor": "#2094fc"

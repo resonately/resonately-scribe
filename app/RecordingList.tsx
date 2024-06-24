@@ -25,14 +25,18 @@ const RecordingCard = ({ recording }: RecordingCardProps): JSX.Element => {
     ? `${Math.floor(durationInSeconds / 60)} m ${Math.floor(durationInSeconds % 60)} s`
     : `${Math.floor(durationInSeconds / 3600)} h ${Math.floor((durationInSeconds % 3600) / 60)} m ${Math.floor(durationInSeconds % 60)} s`;
 
-  const formattedDate = format(new Date(recording.startDate), "do MMMM yyyy, hh:mm:ss a", {
+  const formattedTime = format(new Date(recording.startDate), "h:mm:ss a", {
+    locale: enUS,
+  });
+
+  const formattedDate = format(new Date(recording.startDate), "dd MMM yyyy", {
     locale: enUS,
   });
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.date}>{formattedDate}</Text>
+        <Text style={styles.time}>{formattedTime}</Text>
         <View
           style={[
             styles.statusPill,
@@ -59,7 +63,10 @@ const RecordingCard = ({ recording }: RecordingCardProps): JSX.Element => {
           </Text>
         </View>
       </View>
-      <Text style={styles.duration}>{durationText}</Text>
+      <View style={styles.cardBody}>
+        <Text style={styles.date}>{formattedDate}</Text>
+        <Text style={styles.duration}>{durationText}</Text>
+      </View>
     </View>
   );
 };
@@ -104,12 +111,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  date: {
+  cardBody: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  time: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#424242',
+  },
+  date: {
+    fontSize: 14,
+    color: '#757575',
   },
   statusPill: {
     borderRadius: 16,
@@ -123,6 +139,7 @@ const styles = StyleSheet.create({
   duration: {
     fontSize: 14,
     color: '#757575',
+    textAlign: 'right',
   },
   emptyContainer: {
     flex: 1,

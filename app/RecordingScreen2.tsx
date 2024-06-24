@@ -21,6 +21,7 @@ import { saveRecordings, loadRecordings, clearRecordings, displayRecordings } fr
 import LogoutChecker from './LogoutChecker';
 import uuid from 'react-native-uuid';
 
+
 export interface Recording {
   id: string;
   startDate: string;
@@ -666,7 +667,7 @@ const RecordingScreen = (): JSX.Element => {
           <BottomSheet
             ref={bottomSheetRef}
             index={0} // Start at the first snap point (25%)
-            snapPoints={['20%']}
+            snapPoints={['25%']}
             onChange={(index) => {
               if (index < 0) {
                 bottomSheetRef.current?.snapToIndex(0);
@@ -765,12 +766,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingBottom: 6,
   },
-  fab: {
-    height: 56, // Set a fixed height for the FAB
-  },
-  fullWidthFab: {
-    width: '100%', // Ensure the FAB takes the full width
-  },
   fabContent: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -780,11 +775,6 @@ const styles = StyleSheet.create({
   startButton: {
     color: 'white',
   },
-  endVisitButton: {
-    width: '40%', // Fixed smaller width for the end visit button
-    justifyContent: 'center', // Center the content vertically
-  },
-  
   stopButton: {
     backgroundColor: 'white',
     borderColor: 'red',
@@ -809,16 +799,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center', // Center the button
     width: '100%',
     paddingHorizontal: 40, // Add horizontal padding
-    marginTop: 10, // Ensure all elements start from the same vertical position
+    marginTop: 0, // Ensure all elements start from the same vertical position
   },
-  
+  fab: {
+    height: 56,
+    marginBottom: 50, // Add bottom padding
+    paddingHorizontal: 20, // Add horizontal padding
+  },
+  fullWidthFab: {
+    width: '100%',
+  },
+  endVisitButton: {
+    width: '40%',
+    justifyContent: 'center',
+    marginBottom: 20, // Add bottom padding
+    paddingHorizontal: 0, // Add horizontal padding
+  },
   timerContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 0, // Remove extra margin
-    width: '50%', // Set a fixed width to avoid shaking
+    width: '50%',
+    marginBottom: 20, // Add bottom padding
+    paddingHorizontal: 0, // Add horizontal padding
   },
-  
   muteButton: {
     backgroundColor: 'white',
     borderColor: 'gray',
@@ -827,9 +830,10 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 0, // Add padding for rounded effect
-    width: '20%', // Ensure it does not exceed screen width
-    marginVertical: 0, // Remove extra margin
+    width: '20%',
+    marginVertical: 0,
+    marginBottom: 20, // Add bottom padding
+    paddingHorizontal: 0, // Add horizontal padding
   },
 });
 

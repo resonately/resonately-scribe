@@ -10,6 +10,7 @@ import ProtectedRoute from './ProtectedRoute';
 import theme from './theme'; // Adjust the path according to your project structure
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+
 export type RootStackParamList = {
   InviteScreen: undefined;
   DrawerNavigator: undefined;
