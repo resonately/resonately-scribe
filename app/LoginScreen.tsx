@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Alert, ActivityIndicator, TouchableOpacity, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { Text, TextInput, Button, Checkbox, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as SecureStore from 'expo-secure-store';
 import { RootStackParamList } from './_layout'; // Adjust the path according to your project structure
 import { useAuth } from './AuthContext'; // Import the Auth context
+import analytics from '@react-native-firebase/analytics';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
@@ -42,18 +43,32 @@ const LoginScreen = () => {
   const handleLogin = async () => {
     if (!validateEmail(email)) {
       setEmailError('Please enter a valid email address.');
+      analytics().logEvent('login_attempt', {
+        email: email,
+        success: false,
+        error: 'invalid_email',
+      });
       return;
     } else {
       setEmailError('');
     }
-
+  
     setLoading(true); // Start loading
-
+  
     try {
       const loggedIn = await login(email, password, rememberMe);
       if (!loggedIn) {
         Alert.alert('Login unsuccessful.');
+        analytics().logEvent('login_attempt', {
+          email: email,
+          success: false,
+          error: 'login_unsuccessful',
+        });
       } else {
+        analytics().logEvent('login_attempt', {
+          email: email,
+          success: true,
+        });
         if (rememberMe) {
           await SecureStore.setItemAsync('rememberMe', 'true');
         } else {
@@ -62,73 +77,83 @@ const LoginScreen = () => {
       }
     } catch (error) {
       Alert.alert('Login unsuccessful.');
+      analytics().logEvent('login_attempt', {
+        email: email,
+        success: false,
+        error: JSON.stringify(error),
+      });
     } finally {
       setLoading(false);
     }
-  }
+  };  
 
   const handleReselectClinic = () => {
     // Handle clinic reselection logic here
     setTenantDetails(null);
+    analytics().logEvent('reselect_clinic', {
+      tenant_name: tenantDetails?.tenantName,
+    });
     // navigation.navigate('InviteScreen'); // Replace with your actual navigation
-  };
+  };  
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text variant="headlineLarge" style={[styles.welcomeText, { color: theme.colors.primary }]}>{tenantDetails?.tenantTitle}</Text>
-      <Text variant="titleMedium" style={[styles.titleText, { color: theme.colors.onSurface }]}>Login to your account</Text>
-      <TextInput
-        mode="outlined"
-        label="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        error={!!emailError}
-        style={styles.input}
-        onSubmitEditing={() => handleLogin()} // Trigger login on return key press
-      />
-      {emailError ? <Text style={[styles.errorText, { color: theme.colors.error }]}>{emailError}</Text> : null}
-      <TextInput
-        mode="outlined"
-        label="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-        onSubmitEditing={() => handleLogin()} // Trigger login on return key press
-      />
-      <View style={styles.checkboxContainer}>
-        <TouchableOpacity 
-          onPress={() => setRememberMe(!rememberMe)} 
-          style={styles.checkboxTouchable}
-        >
-          <Checkbox
-            status={rememberMe ? 'checked' : 'unchecked'}
-            color={theme.colors.primary}
-            uncheckedColor={theme.colors.primary} // Set color for unchecked state
-          />
-          <Text style={[styles.checkboxLabel, { color: theme.colors.onSurface }]}>Remember me</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Text variant="headlineLarge" style={[styles.welcomeText, { color: theme.colors.primary }]}>{tenantDetails?.tenantTitle}</Text>
+        <Text variant="titleMedium" style={[styles.titleText, { color: theme.colors.onSurface }]}>Login to your account</Text>
+        <TextInput
+          mode="outlined"
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          error={!!emailError}
+          style={styles.input}
+          onSubmitEditing={() => handleLogin()} // Trigger login on return key press
+        />
+        {emailError ? <Text style={[styles.errorText, { color: theme.colors.error }]}>{emailError}</Text> : null}
+        <TextInput
+          mode="outlined"
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          style={styles.input}
+          onSubmitEditing={() => handleLogin()} // Trigger login on return key press
+        />
+        <View style={styles.checkboxContainer}>
+          <TouchableOpacity 
+            onPress={() => setRememberMe(!rememberMe)} 
+            style={styles.checkboxTouchable}
+          >
+            <Checkbox
+              status={rememberMe ? 'checked' : 'unchecked'}
+              color={theme.colors.primary}
+              uncheckedColor={theme.colors.primary} // Set color for unchecked state
+            />
+            <Text style={[styles.checkboxLabel, { color: theme.colors.onSurface }]}>Remember me</Text>
+          </TouchableOpacity>
+        </View>
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
+        ) : (
+          <Button
+            mode="contained"
+            onPress={handleLogin}
+            style={styles.button}
+            contentStyle={styles.buttonContent}
+            labelStyle={styles.buttonLabel}
+            uppercase={false}
+          >
+            Login
+          </Button>
+        )}
+        <TouchableOpacity onPress={handleReselectClinic}>
+          <Text style={[styles.reselectText, { color: theme.colors.onSurface }]}>Not your clinic? <Text style={[styles.reselectLink, { color: theme.colors.primary }]}>Go back</Text></Text>
         </TouchableOpacity>
       </View>
-      {loading ? (
-        <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
-      ) : (
-        <Button
-          mode="contained"
-          onPress={handleLogin}
-          style={styles.button}
-          contentStyle={styles.buttonContent}
-          labelStyle={styles.buttonLabel}
-          uppercase={false}
-        >
-          Login
-        </Button>
-      )}
-      <TouchableOpacity onPress={handleReselectClinic}>
-        <Text style={[styles.reselectText, { color: theme.colors.onSurface }]}>Not your clinic? <Text style={[styles.reselectLink, { color: theme.colors.primary }]}>Go back</Text></Text>
-      </TouchableOpacity>
-    </View>
+    </TouchableWithoutFeedback>
   );
 };
 

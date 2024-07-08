@@ -9,7 +9,10 @@ import { useKeepAwake } from 'expo-keep-awake';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from './AuthContext';
 import Timer from '@/components/Timer';
+import analytics from '@react-native-firebase/analytics';
+import CreateMeetingSheet from './CreateMeetingSheet';
 import { FAB, IconButton, useTheme, ActivityIndicator } from 'react-native-paper';
+import { Appointment } from './CalendarAppointments';
 import {
   getRecordingUri,
   storeRecordingLocally,
@@ -20,16 +23,42 @@ import {
 import { saveRecordings, loadRecordings, clearRecordings, displayRecordings } from './AsyncStorageUtils';
 import LogoutChecker from './LogoutChecker';
 import uuid from 'react-native-uuid';
+import CalendarAppointments from './CalendarAppointments';
+import TimelineCalendarScreen from './SampleTimeline';
+import Constants from 'expo-constants';
+
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
 
 export interface Recording {
   id: string;
   startDate: string;
+  appointmentId: string;
   endDate: string | null;
   status: string;
   sound: Audio.Sound | null;
   chunks: Chunk[];
   chunkCounter: number;
+}
+
+interface CreateMeetingSheetProps {
+  bottomSheetRef: React.RefObject<BottomSheet>;
+  isSheetOpen: boolean;
+  setIsSheetOpen: (isOpen: boolean) => void;
+  refreshAppointments: () => void;
+  event?: {
+    id?: string;
+    title: string;
+    start: string;
+    end: string;
+    patient_name?: string;
+    appointment_type?: string;
+  };
+  handleJoinMeeting: () => void;
+  handleMuteToggle: () => void;
+  handleEndCall: () => void;
+  isMuted: boolean;
+  isMeetingStarted: boolean;
 }
 
 export interface Chunk {
@@ -54,11 +83,13 @@ const RecordingScreen = (): JSX.Element => {
   const { tenantName } = useAuth().tenantDetails;
 
   const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false); // New state for pause
   const [isConnected, setIsConnected] = useState(true);
   const [connectionMessage, setConnectionMessage] = useState('');
   const connectionAnim = useRef(new Animated.Value(0)).current;
   const recordingIdRef = useRef<string | null>(null);
+  const appointmentIdRef = useRef<string | null>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const recordingsRef = useRef<Recording[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -67,6 +98,7 @@ const RecordingScreen = (): JSX.Element => {
   const [stopLoading, setStopLoading] = useState(false);
   const [buttonDisabled, setButtonDisabled] = useState(false);
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const createMeetingSheetRef = useRef<BottomSheet>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const chunkStartTimeRef = useRef<Date | null>(null); // Track chunk start time
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -76,6 +108,11 @@ const RecordingScreen = (): JSX.Element => {
   const [isMounted, setIsMounted] = useState(true);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [initialStartTime, setInitialStartTime] = useState<number | null>(null);
+  const [iscreateMeetingSheetOpen, setIscreateMeetingSheetOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Appointment | null>(null);
+  const refreshAppointmentsRef = useRef<() => void>(() => {});
+
+
 
   const theme = useTheme();
 
@@ -89,6 +126,11 @@ const RecordingScreen = (): JSX.Element => {
     setRecordingId(newRecordingId);
   };
 
+  const updateAppointmentId = (newAppointmentId: string | null) => {
+    appointmentIdRef.current = newAppointmentId;
+    setAppointmentId(newAppointmentId);
+  };
+
 
   const handleChunkCreation = async (isLastChunk: boolean = false) => {
     try {
@@ -99,11 +141,21 @@ const RecordingScreen = (): JSX.Element => {
         const chunk = createChunk(localFileUri, chunkStartTimeRef.current!, new Date(), isLastChunk);
         await addChunkToAsyncStorage(chunk); // Add chunk to async storage
         incrementChunkCounter();
+        // Log the event for chunk creation
+        analytics().logEvent('chunk_created', {
+          recording_id: recordingIdRef.current,
+          chunk_position: chunk.position,
+          is_last_chunk: chunk.isLastChunk,
+        });
       }
 
     } catch (error: any) {
       console.error(error.message);
     }
+  };
+  
+  const setRefreshAppointments = (refreshFunc: () => void) => {
+    refreshAppointmentsRef.current = refreshFunc;
   };
 
   const deleteOldRecordings = async () => {
@@ -182,12 +234,27 @@ const RecordingScreen = (): JSX.Element => {
   const uploadChunk = async (chunk: Chunk, recording: Recording, tenantName: string) => {
     const success = await uploadChunkToServer(chunk, recording, tenantName);
     if (success) {
-      chunk.status = 'uploaded';
-      await saveUpdatedRecordingsState();
-      return true;
+        chunk.status = 'uploaded';
+        await saveUpdatedRecordingsState();
+        
+        // Log the event for successful chunk upload
+        analytics().logEvent('chunk_upload_success', {
+            recording_id: recording.id,
+            chunk_position: chunk.position,
+        });
+
+        return true;
+    } else {
+        // Log the event for unsuccessful chunk upload
+        analytics().logEvent('chunk_upload_failure', {
+            recording_id: recording.id,
+            chunk_position: chunk.position,
+        });
+
+        return false;
     }
-    return false;
-  };
+};
+
 
   const saveUpdatedRecordingsState = async () => {
     await saveRecordings(recordingsRef.current);
@@ -340,7 +407,7 @@ const RecordingScreen = (): JSX.Element => {
       console.log(sessionCookie);
       console.log(userEmail);
       console.log(tenantName);
-      const response = await fetch('https://api.myhearing.app/server/v1/start-recording', {
+      const response = await fetch(`${API_BASE_URL}/server/v1/start-recording`, {
         method: 'POST',
         headers: {
           ...headers,
@@ -403,9 +470,10 @@ const RecordingScreen = (): JSX.Element => {
     return recording;
   };
 
-  const addNewRecordingToList = async (newRecordingId: string) => {
+  const addNewRecordingToList = async (newRecordingId: string, appointmentId: string) => {
     const newRecording: Recording = {
       id: newRecordingId,
+      appointmentId: appointmentId,
       startDate: new Date().toISOString(),
       endDate: null,
       status: 'In Progress',
@@ -436,7 +504,7 @@ const RecordingScreen = (): JSX.Element => {
     console.log('stopRecordingOnServer');
     console.log(endDate);
     try {
-      const response = await fetch('https://api.myhearing.app/server/v1/stop-recording', {
+      const response = await fetch(`${API_BASE_URL}/server/v1/stop-recording`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -460,6 +528,20 @@ const RecordingScreen = (): JSX.Element => {
 
   const stopAndUnloadRecording = async (recording: Audio.Recording | null) => {
     await recording?.stopAndUnloadAsync();
+  };
+
+  const handleMuteToggle = async () => {
+    if (isPaused) {
+        await resumeRecording(recordingRef.current);
+    } else {
+        await pauseRecording(recordingRef.current);
+    }
+    setIsPaused(!isPaused);
+
+    // Log the event when mute/unmute is toggled
+    analytics().logEvent('toggle_mute', {
+        is_paused: !isPaused,
+    });
   };
 
   const pauseRecording = async (recording: Audio.Recording | null) => {
@@ -527,7 +609,7 @@ const RecordingScreen = (): JSX.Element => {
     setButtonDisabled(false); // Re-enable the button after API call is completed
   };
 
-  const initializeRecording = async () => {
+  const initializeRecording = async (appointmentId: string) => {
     if (recordingRef.current) {
       // Stop any ongoing recording before starting a new one
       await handleChunkCreation(true); // Finalize the last chunk of the ongoing recording
@@ -540,20 +622,20 @@ const RecordingScreen = (): JSX.Element => {
     updateRecordingId(newRecordingId); // Set the recordingId state
     await setAudioMode();
     const newRecording = await startAudioRecording();
-    await addNewRecordingToList(newRecordingId);
+    await addNewRecordingToList(newRecordingId, appointmentId);
     recordingRef.current = newRecording;
     setInitialStartTime(Date.now());
     setIsRecording(true);
   };
   
 
-  const startRecording = async () => {
+  const startRecording = async (appointmentId: string) => {
     try {
       setStartLoading(true);
       setButtonDisabled(true); // Disable the button immediately when clicked
       setIsPaused(false); // Reset mute button state to not muted
 
-      await initializeRecording();
+      await initializeRecording(appointmentId);
 
       // Set up interval to stop and restart the recording every minute
       recordingIntervalRef.current = setInterval(async () => {
@@ -580,6 +662,10 @@ const RecordingScreen = (): JSX.Element => {
 
   const stopRecording = async () => {
     console.log('stopRecording');
+    // Log the event when recording stops
+    analytics().logEvent('stop_recording', {
+      recording_id: recordingIdRef.current,
+    });
     setIsRecording(false);
     setStopLoading(true);
     setButtonDisabled(true); // Disable the button immediately when clicked
@@ -642,94 +728,146 @@ const RecordingScreen = (): JSX.Element => {
 
   const handleAppStateChange = (nextAppState: AppStateStatus) => {
     if (nextAppState === 'active') {
-      console.log('App has come to the foreground!');
-      // setIsMounted(true);
+        console.log('App has come to the foreground!');
+        // Log the event when the app comes to the foreground
+        analytics().logEvent('app_state_change', {
+            state: 'foreground',
+        });
     }
-  
+
     if (nextAppState.match(/inactive|background/)) {
-      console.log('App is in the background');
-      // setIsMounted(false);
+        console.log('App is in the background');
+        // Log the event when the app goes to the background
+        analytics().logEvent('app_state_change', {
+            state: 'background',
+        });
     }
-  
+
     setAppState(nextAppState);
   };
 
+
   return (
     <View style={styles.container}>
-      {!isConnected && (
-        <View style={styles.connectionBar}>
-          <Text style={styles.connectionText}>No Internet Connection</Text>
-        </View>
-      )}
-      {isMounted && (
-        <>
-          <RecordingList recordings={recordings} />
-          <BottomSheet
-            ref={bottomSheetRef}
-            index={0} // Start at the first snap point (25%)
-            snapPoints={['25%']}
-            onChange={(index) => {
-              if (index < 0) {
-                bottomSheetRef.current?.snapToIndex(0);
-              }
-            }}
-          >
-            <View style={[styles.bottomSheet, { backgroundColor: theme.colors.background }]}>
-              <View style={styles.buttonContainer}>
-                <View style={styles.fabContainer}>
-                  {isRecording ? (
-                    <>
-                      <FAB
-                        style={[
-                          styles.fab,
-                          styles.stopButton,
-                          styles.endVisitButton, // Apply fixed width style
-                          buttonDisabled && styles.disabledButton
-                        ]}
-                        icon="stop"
-                        onPress={stopRecording}
-                        disabled={buttonDisabled}
-                        label="End Visit"
-                        color="red" // Set the icon color conditionally
-                      />
-                      <View style={styles.timerContainer}>
-                        <Timer isRunning={isRecording} isPaused={isPaused} initialStartTime={initialStartTime} />
-                      </View>
-                    </>
-                  ) : (
-                    <FAB
-                      style={[
-                        styles.fab,
-                        styles.fullWidthFab, // Apply full width style
-                        { backgroundColor: theme.colors.primary },
-                        buttonDisabled && styles.disabledButton
-                      ]}
-                      icon={buttonDisabled ? () => <ActivityIndicator animating={true} color="white" /> : "plus"}
-                      onPress={startRecording}
-                      disabled={buttonDisabled}
-                      label={buttonDisabled ? "" : "Start Appointment"}
-                      color="white"
-                    />
-                  )}
-                  {isRecording && (
-                    <FAB
-                      style={[
-                        styles.muteButton,
-                        isPaused ? styles.muted : null,
-                      ]}
-                      icon={isPaused ? "microphone-off" : "microphone"}
-                      onPress={isPaused ? unmuteRecording : muteRecording}
-                      color={isPaused ? "red" : "black"} // Set the icon color conditionally
-                    />
-                  )}
-                </View>
-              </View>
-              {/* <LogoutChecker isRecordingInProgress={isRecording}></LogoutChecker> */}
-            </View>
-          </BottomSheet>
-        </>
-      )}
+  {!isConnected && (
+    <View style={styles.connectionBar}>
+      <Text style={styles.connectionText}>No Internet Connection</Text>
     </View>
+  )}
+  {isMounted && (
+    <>
+      <CalendarAppointments 
+        setSelectedEvent={setSelectedEvent} 
+        setIsSheetOpen={setIscreateMeetingSheetOpen} 
+        setRefreshAppointments={setRefreshAppointments}
+      />
+      {/* <TimelineCalendarScreen></TimelineCalendarScreen> */}
+      <CreateMeetingSheet
+        bottomSheetRef={createMeetingSheetRef}
+        isSheetOpen={iscreateMeetingSheetOpen}
+        setIsSheetOpen={setIscreateMeetingSheetOpen}
+        refreshAppointments={refreshAppointmentsRef.current}
+        event={selectedEvent} // Pass the selected event to the sheet
+        handleJoinMeeting={startRecording}
+        handleMuteToggle={handleMuteToggle}
+        handleEndCall={stopRecording}
+        setAppointmentId={updateAppointmentId}
+        isMuted={isPaused}
+        isMeetingStarted={isRecording}
+        initialStartTime={initialStartTime}
+      />
+      {!isRecording && (
+        <FAB
+          style={{
+              position: 'absolute',
+              margin: 16,
+              right: 0,
+              bottom: 0,
+              backgroundColor: iscreateMeetingSheetOpen ? 'white' : theme.colors.primary, // Change background color conditionally
+              borderWidth: iscreateMeetingSheetOpen ? 1 : 0, // Add border for outlined style
+              borderColor: theme.colors.primary, // Use primary color for border
+          }}
+          icon={iscreateMeetingSheetOpen ? "close" : "plus"}
+          onPress={() => {
+              setSelectedEvent(null);
+              setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
+              if (!iscreateMeetingSheetOpen) {
+                  updateAppointmentId(null);
+                  analytics().logEvent('open_new_appointment_sheet');
+              } else {
+                  analytics().logEvent('close_new_appointment_sheet');
+              }
+          }}
+          color={iscreateMeetingSheetOpen ? theme.colors.primary : "white"} // Change icon color conditionally
+          label={iscreateMeetingSheetOpen ? "" : "New Appointment"}
+        />
+      )}
+      {/* <RecordingList recordings={recordings} /> */}
+      {/* <BottomSheet
+        ref={bottomSheetRef}
+        index={0} // Start at the first snap point (25%)
+        snapPoints={['25%']}
+        onChange={(index) => {
+          if (index < 0) {
+            bottomSheetRef.current?.snapToIndex(0);
+          }
+        }}
+      >
+        <View style={[styles.bottomSheet, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.buttonContainer}>
+            <View style={styles.fabContainer}>
+              {isRecording ? (
+                <>
+                  <FAB
+                    style={[
+                      styles.fab,
+                      styles.stopButton,
+                      styles.endVisitButton, // Apply fixed width style
+                      buttonDisabled && styles.disabledButton
+                    ]}
+                    icon="stop"
+                    onPress={stopRecording}
+                    disabled={buttonDisabled}
+                    label="End Visit"
+                    color="red" // Set the icon color conditionally
+                  />
+                  <View style={styles.timerContainer}>
+                    <Timer isRunning={isRecording} isPaused={isPaused} initialStartTime={initialStartTime} />
+                  </View>
+                </>
+              ) : (
+                <FAB
+                  style={[
+                    styles.fab,
+                    styles.fullWidthFab, // Apply full width style
+                    { backgroundColor: theme.colors.primary },
+                    buttonDisabled && styles.disabledButton
+                  ]}
+                  icon={buttonDisabled ? () => <ActivityIndicator animating={true} color="white" /> : "plus"}
+                  onPress={startRecording}
+                  disabled={buttonDisabled}
+                  label={buttonDisabled ? "" : "Start Appointment"}
+                  color="white"
+                />
+              )}
+              {isRecording && (
+                <FAB
+                  style={[
+                    styles.muteButton,
+                    isPaused ? styles.muted : null,
+                  ]}
+                  icon={isPaused ? "microphone-off" : "microphone"}
+                  onPress={isPaused ? unmuteRecording : muteRecording}
+                  color={isPaused ? "red" : "black"} // Set the icon color conditionally
+                />
+              )}
+            </View>
+          </View>
+        </View>
+      </BottomSheet> */}
+    </>
+  )}
+</View>
   );  
 };
 
@@ -835,6 +973,13 @@ const styles = StyleSheet.create({
     marginBottom: 20, // Add bottom padding
     paddingHorizontal: 0, // Add horizontal padding
   },
+  createMeetingFab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0
+  },
+  
 });
 
 export default RecordingScreen;

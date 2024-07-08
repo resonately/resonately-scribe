@@ -4,6 +4,9 @@ import * as SecureStore from 'expo-secure-store';
 import { Audio } from 'expo-av';
 import { Chunk } from './RecordingScreen';
 import { Recording } from './RecordingScreen2';
+import Constants from 'expo-constants';
+
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
 export const getRecordingUri = async (recording: Audio.Recording): Promise<string | null> => {
   return recording.getURI();
@@ -31,6 +34,44 @@ export const storeRecordingLocally = async (recordingUri: string, recordingId: s
   return null;
 };
 
+export const deleteAppointment = async (appointmentId: number, tenantName: string): Promise<boolean> => {
+  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+
+  if (!sessionCookie || !userEmail) {
+    console.error('Session cookie or user email not found.');
+    return false;
+  }
+
+  const headers: HeadersInit = {
+    'x-tenant-name': tenantName,
+    'Content-Type': 'application/json',
+    'Cookie': sessionCookie,
+    'created-by': userEmail,
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/server/v1/appointment/${appointmentId}`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (response.ok) {
+      console.log('Appointment deleted successfully.');
+      return true;
+    } else {
+      console.error('Failed to delete appointment. Status:', response.status);
+      const responseBody = await response.text();
+      console.error('Response body:', responseBody);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    return false;
+  }
+};
+
+
 export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantName: string): Promise<boolean> => {
   const { position, startTime, endTime, uri } = chunk;
 
@@ -51,6 +92,7 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
 
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
+    'x-time-zone': Intl.DateTimeFormat().resolvedOptions().timeZone
   };
 
   if (sessionCookie) {
@@ -79,7 +121,7 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
 
   while (attempt < MAX_RETRIES && !success) {
     try {
-      const response = await fetch('https://api.myhearing.app/server/v1/upload-audio-chunks', {
+      const response = await fetch(`${API_BASE_URL}/server/v1/upload-audio-chunks`, {
         method: 'POST',
         headers,
         body: formData,
@@ -162,7 +204,7 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 
   while (attempt < MAX_RETRIES && !success) {
     try {
-      const response = await fetch('https://api.myhearing.app/server/v1/chunk', {
+      const response = await fetch(`${API_BASE_URL}/server/v1/chunk`, {
         method: 'POST',
         headers,
         body: formData,
@@ -197,6 +239,110 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 
   return false;
 };
+
+export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string): Promise<any> => {
+  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+
+  if (!sessionCookie) {
+    console.error('Session cookie not found.');
+    return null;
+  }
+
+  const headers: HeadersInit = {
+    'x-tenant-name': tenantName,
+    'Content-Type': 'application/json',
+    'Cookie': sessionCookie,
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/server/v1/appointments?startDate=${startDate}&endDate=${endDate}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Appointments fetched successfully.');
+      console.log(API_BASE_URL);
+      return data.appointments;
+    } else {
+      console.error('Failed to fetch appointments. Status:', response.status);
+      const responseBody = await response.text();
+      console.error('Response body:', responseBody);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    return null;
+  }
+};
+
+
+export const createAppointment = async (
+  appointmentType: string,
+  patientName: string,
+  appointmentTitle: string,
+  startTime: string,
+  endTime: string,
+  notes: string,
+  tenantName: string
+): Promise<{ success: boolean, appointmentId?: string }> => {
+  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+
+  if (!sessionCookie) {
+    console.error('Session cookie not found.');
+    return { success: false };
+  }
+
+  const headers: HeadersInit = {
+    'x-tenant-name': tenantName,
+    'Content-Type': 'application/json',
+    'Cookie': sessionCookie,
+  };
+
+  const body = JSON.stringify({
+    external_source: 'resonately',
+    data: [{
+      external_reference_id: Date.now().toString(),
+      appointment_type: appointmentType,
+      patient_name: patientName,
+      expected_appointment_start_time: startTime,
+      expected_appointment_end_time: endTime,
+      appointment_title: appointmentTitle,
+      notes: notes
+    }]});
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/server/v1/appointment`, {
+      method: 'POST',
+      headers,
+      body,
+    });
+
+    if (response.ok) {
+      const responseData = await response.json();
+      console.log('Appointment created successfully.');
+      
+      if (responseData.appointmentIds && responseData.appointmentIds.length > 0) {
+        return { success: true, appointmentId: responseData.appointmentIds[0] };
+      } else {
+        console.error('No appointment IDs returned.');
+        return { success: false };
+      }
+    } else {
+      console.error('Failed to create appointment. Status:', response.status);
+      const responseBody = await response.text();
+      console.error('Response body:', responseBody);
+      return { success: false };
+    }
+  } catch (error) {
+    console.error('Error creating appointment:', error);
+    return { success: false };
+  }
+};
+
+
+
 
 
 export const deleteRecordingFolder = async (recordingId: string): Promise<void> => {

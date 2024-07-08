@@ -10,6 +10,11 @@ import { RootStackParamList } from './_layout'; // Adjust the path according to 
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { err } from 'react-native-svg';
 import { useAuth } from './AuthContext';
+import crashlytics from '@react-native-firebase/crashlytics';
+import analytics from '@react-native-firebase/analytics';
+import Constants from 'expo-constants';
+
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
 
 const InviteScreen = () => {
@@ -28,10 +33,17 @@ const InviteScreen = () => {
     const getCameraPermissions = async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
+      
+      // Log the event for camera permission
+      analytics().logEvent('camera_permission', {
+        status: status,
+      });
     };
-
+  
     getCameraPermissions();
-  }, []);
+  }, []);  
+
+  
 
   useFocusEffect(
     useCallback(() => {
@@ -45,14 +57,21 @@ const InviteScreen = () => {
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
     setScanned(true);
     handleInviteCode(data);
+  
+    // Log the event for barcode scanned
+    analytics().logEvent('barcode_scanned', {
+      type: type,
+      data: data,
+    });
   };
+  
 
   const handleInviteCode = async (inviteCode: string) => {
     try {
-      const response = await fetch(`https://api.myhearing.app/server/v1/tenant?inviteCode=${encodeURIComponent(inviteCode)}`, {
+      const response = await fetch(`${API_BASE_URL}/server/v1/tenant?inviteCode=${encodeURIComponent(inviteCode)}`, {
         method: 'GET',
       });
-
+  
       const result = await response.json();
       if (response.ok) {
         if (result.data && result.data.tenantName) {
@@ -62,25 +81,55 @@ const InviteScreen = () => {
           setTenantDetails(result.data);
           // Turn off the camera before navigating to the next screen
           setCameraActive(false);
-
+  
           // Navigate to the login screen
           navigation.navigate('LoginScreen');
+  
+          // Log the event for successful invite code handling
+          analytics().logEvent('invite_code_success', {
+            invite_code: inviteCode,
+            tenant_name: result.data.tenantName,
+          });
         } else {
           Alert.alert('Error', 'No tenant found with that invite code.');
+  
+          // Log the event for unsuccessful invite code handling
+          analytics().logEvent('invite_code_failure', {
+            invite_code: inviteCode,
+            error: 'No tenant found',
+          });
         }
       } else {
         Alert.alert('Invite code required.', response.statusText || 'Please share an invite code.');
+  
+        // Log the event for unsuccessful invite code handling
+        analytics().logEvent('invite_code_failure', {
+          invite_code: inviteCode,
+          error: response.statusText || 'Unknown error',
+        });
       }
     } catch (error) {
       console.error('Error fetching tenant details:', error);
       Alert.alert('Error', 'An error occurred. Please try again.');
+  
+      // Log the event for unsuccessful invite code handling
+      analytics().logEvent('invite_code_failure', {
+        invite_code: inviteCode,
+        error: JSON.stringify(error),
+      });
     }
-  };
+  };  
 
   const handleManualSubmit = () => {
     handleInviteCode(manualCode);
     setIsModalVisible(false);
+  
+    // Log the event for manual code submission
+    analytics().logEvent('manual_code_submit', {
+      manual_code: manualCode,
+    });
   };
+  
 
   if (hasPermission === null) {
     return <Text>Requesting for camera permission</Text>;
@@ -113,9 +162,14 @@ const InviteScreen = () => {
       </View>
 
       <View style={styles.overlay}>
-        <Button mode="outlined" onPress={() => {
+        <Button mode="outlined" onPress={async () => {
           console.log("Enter Code Manually clicked.");
           setIsModalVisible(true);
+          await analytics().logEvent('enter_manual_code', {
+            page: 'invite',
+            element_type: 'button',
+            event_type: 'on_click',
+          })
         }}>
           Enter Code Manually
         </Button>
@@ -155,13 +209,15 @@ const InviteScreen = () => {
         </TouchableWithoutFeedback>
       </Modal>
 
-
-
       {scanned && (
-        <Button mode="outlined" onPress={() => setScanned(false)}>
-          Tap to Scan Again
-        </Button>
-      )}
+      <Button mode="outlined" onPress={() => {
+        setScanned(false);
+        // Log the event for rescanning barcode
+        analytics().logEvent('rescan_barcode');
+      }}>
+        Tap to Scan Again
+      </Button>
+    )}
     </View>
   );
 };

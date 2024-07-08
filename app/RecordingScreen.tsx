@@ -20,6 +20,9 @@ import {
 import { saveRecordings, loadRecordings, clearRecordings, displayRecordings } from './AsyncStorageUtils';
 import AnimatedSoundBars from '@/components/AnimatedSoundBars';
 import LogoutChecker from './LogoutChecker';
+import Constants from 'expo-constants';
+
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
 interface Recording {
   id: string;
@@ -347,7 +350,7 @@ const RecordingScreen = (): JSX.Element => {
       console.log(sessionCookie);
       console.log(userEmail);
       console.log(tenantName);
-      const response = await fetch('https://api.myhearing.app/server/v1/start-recording', {
+      const response = await fetch(`${API_BASE_URL}/server/v1/start-recording`, {
         method: 'POST',
         headers: {
           ...headers,
@@ -445,7 +448,7 @@ const RecordingScreen = (): JSX.Element => {
     console.log('stopRecordingOnServer');
     console.log(endDate);
     try {
-      const response = await fetch('https://api.myhearing.app/server/v1/stop-recording', {
+      const response = await fetch(`${API_BASE_URL}/server/v1/stop-recording`, {
         method: 'POST',
         headers,
         body: JSON.stringify({

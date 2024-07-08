@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import ProtectedRoute from './ProtectedRoute';
 import theme from './theme'; // Adjust the path according to your project structure
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import MeetingControlsScreen from './MeetingControlsScreen';
 
 
 export type RootStackParamList = {
@@ -17,6 +18,7 @@ export type RootStackParamList = {
   LoginScreen: undefined;
   LandingScreen: undefined;
   RecordingScreen: undefined;
+  MeetingControlsScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -46,6 +48,7 @@ const RootLayoutComponent = () => {
             </ProtectedRoute>
           )}
         </Stack.Screen>
+
       )}
     </Stack.Navigator>
   );  

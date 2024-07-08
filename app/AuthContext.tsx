@@ -1,6 +1,9 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -66,7 +69,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const loginWithCredentials = async (email: string, password: string, tenantDetails: any) => {
-    const response = await fetch('https://api.myhearing.app/oms/v1/api/method/login', {
+    const response = await fetch(`${API_BASE_URL}/oms/v1/api/method/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
