@@ -13,6 +13,7 @@ import { useAuth } from './AuthContext';
 import crashlytics from '@react-native-firebase/crashlytics';
 import analytics from '@react-native-firebase/analytics';
 import Constants from 'expo-constants';
+import LoginScreen from './LoginScreen';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -81,15 +82,15 @@ const InviteScreen = () => {
           setTenantDetails(result.data);
           // Turn off the camera before navigating to the next screen
           setCameraActive(false);
-  
-          // Navigate to the login screen
-          navigation.navigate('LoginScreen');
-  
+
           // Log the event for successful invite code handling
           analytics().logEvent('invite_code_success', {
             invite_code: inviteCode,
             tenant_name: result.data.tenantName,
           });
+
+          // Navigate to the login screen
+          navigation.navigate('LoginScreen');
         } else {
           Alert.alert('Error', 'No tenant found with that invite code.');
   
@@ -118,7 +119,17 @@ const InviteScreen = () => {
         error: JSON.stringify(error),
       });
     }
-  };  
+  }; 
+  
+  const handleEnterCodeClick = async () => {
+    console.log("Enter Code Manually clicked.");
+    setIsModalVisible(true);
+    await analytics().logEvent('enter_manual_code', {
+      page: 'invite',
+      element_type: 'button',
+      event_type: 'on_click',
+    })
+  }
 
   const handleManualSubmit = () => {
     handleInviteCode(manualCode);
@@ -162,15 +173,7 @@ const InviteScreen = () => {
       </View>
 
       <View style={styles.overlay}>
-        <Button mode="outlined" onPress={async () => {
-          console.log("Enter Code Manually clicked.");
-          setIsModalVisible(true);
-          await analytics().logEvent('enter_manual_code', {
-            page: 'invite',
-            element_type: 'button',
-            event_type: 'on_click',
-          })
-        }}>
+        <Button mode="outlined" onPress={handleEnterCodeClick}>
           Enter Code Manually
         </Button>
       </View>

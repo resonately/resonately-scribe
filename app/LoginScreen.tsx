@@ -93,7 +93,7 @@ const LoginScreen = () => {
     analytics().logEvent('reselect_clinic', {
       tenant_name: tenantDetails?.tenantName,
     });
-    // navigation.navigate('InviteScreen'); // Replace with your actual navigation
+    navigation.navigate('InviteScreen'); // Replace with your actual navigation
   };  
 
   return (
