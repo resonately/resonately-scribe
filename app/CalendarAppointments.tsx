@@ -100,6 +100,7 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
       const mappedAppointments = mapAppointmentsToTimeline(fetchedAppointments);
       setEvents(JSON.parse(JSON.stringify(mappedAppointments)));
 
+
       // Update marked dates
       const newMarkedDates = {};
       Object.keys(mappedAppointments).forEach(date => {
@@ -287,7 +288,8 @@ const styles = StyleSheet.create({
   bannerText: {
     color: 'white',
     fontWeight: 'bold',
-    textAlign: 'center', // Ensure text is centered
+    textAlign: 'center', // Ensure text is centered horizontally
+    width: '100%', // Add this line to make the text span the full width of the banner
   },
 });
 

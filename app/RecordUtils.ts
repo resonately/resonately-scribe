@@ -243,6 +243,12 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string): Promise<any> => {
   const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
 
+  console.log('loadAppointments');
+  console.log(tenantName);
+  console.log(startDate);
+  console.log(endDate);
+  console.log(API_BASE_URL);
+
   if (!sessionCookie) {
     console.error('Session cookie not found.');
     return null;
@@ -253,6 +259,8 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
     'Content-Type': 'application/json',
     'Cookie': sessionCookie,
   };
+
+  console.log(headers);
 
   try {
     const response = await fetch(`${API_BASE_URL}/server/v1/appointments?startDate=${startDate}&endDate=${endDate}`, {
@@ -341,9 +349,111 @@ export const createAppointment = async (
   }
 };
 
+interface RecordingInfo {
+  folderPath: string;
+  filePath: string;
+  ageInSeconds: number;
+}
 
+export const deleteRecordingsByAge = async (recordings: RecordingInfo[], maxAgeInSeconds: number): Promise<void> => {
+  console.log(`deleteRecordingsByAge`);
+  try {
+    for (const recording of recordings) {
+      console.log(recording.ageInSeconds);
+      console.log(maxAgeInSeconds);
+      if (recording.ageInSeconds > maxAgeInSeconds) {
+        await FileSystem.deleteAsync(recording.filePath);
+        console.log(`Deleted file: ${recording.filePath}`);
+      }
+    }
+    console.log('Old recordings deleted successfully.');
+  } catch (error) {
+    console.error('Error deleting old recordings:', error);
+  }
+};
 
+export const listRecordingsAsJson = async (): Promise<RecordingInfo[]> => {
+  const recordingsInfo: RecordingInfo[] = [];
 
+  try {
+    const recordingsDir = `${FileSystem.documentDirectory}recordings/`;
+    const dirInfo = await FileSystem.getInfoAsync(recordingsDir);
+
+    if (dirInfo.exists && dirInfo.isDirectory) {
+      const dirs = await FileSystem.readDirectoryAsync(recordingsDir);
+
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+      for (const dir of dirs) {
+        const dirPath = `${recordingsDir}${dir}/`;
+        const dirInfo = await FileSystem.getInfoAsync(dirPath);
+
+        if (dirInfo.exists && dirInfo.isDirectory) {
+          const files = await FileSystem.readDirectoryAsync(dirPath);
+          for (const file of files) {
+            const filePath = `${dirPath}${file}`;
+            const fileInfo = await FileSystem.getInfoAsync(filePath);
+
+            if (fileInfo.exists && !fileInfo.isDirectory) {
+              const fileModificationTimeInSeconds = Math.floor(fileInfo.modificationTime);
+              const ageInSeconds = nowInSeconds - fileModificationTimeInSeconds;
+
+              recordingsInfo.push({
+                folderPath: dirPath,
+                filePath: filePath,
+                ageInSeconds: ageInSeconds,
+              });
+            }
+          }
+        }
+      }
+    } else {
+      console.log('No recordings directory found.');
+    }
+  } catch (error) {
+    console.error('Error listing recordings with ages:', error);
+  }
+
+  return recordingsInfo;
+};
+
+export const listRecordings = async (): Promise<void> => {
+  try {
+    const recordingsDir = `${FileSystem.documentDirectory}recordings/`;
+    const dirInfo = await FileSystem.getInfoAsync(recordingsDir);
+
+    if (dirInfo.exists && dirInfo.isDirectory) {
+      const dirs = await FileSystem.readDirectoryAsync(recordingsDir);
+
+      const now = new Date().getTime();
+      for (const dir of dirs) {
+        const dirPath = `${recordingsDir}${dir}/`;
+        const dirInfo = await FileSystem.getInfoAsync(dirPath);
+
+        if (dirInfo.exists && dirInfo.isDirectory) {
+          console.log(`Folder: ${dir}`);
+
+          const files = await FileSystem.readDirectoryAsync(dirPath);
+          for (const file of files) {
+            const filePath = `${dirPath}${file}`;
+            const fileInfo = await FileSystem.getInfoAsync(filePath);
+
+            if (fileInfo.exists && !fileInfo.isDirectory) {
+              const fileCreationTime = new Date(fileInfo.modificationTime).getTime();
+              const age = Math.floor(Date.now() / 1000) -  Math.floor( fileInfo.modificationTime/ 1000);
+
+              console.log(`  File: ${file}`);
+              console.log(`    Age: ${Math.floor(age / (1000 * 60 * 60))} hours`);
+            }
+          }
+        }
+      }
+    } else {
+      console.log('No recordings directory found.');
+    }
+  } catch (error) {
+    console.error('Error listing recordings with ages:', error);
+  }
+};
 
 export const deleteRecordingFolder = async (recordingId: string): Promise<void> => {
   console.log('deleteRecordingFolder');

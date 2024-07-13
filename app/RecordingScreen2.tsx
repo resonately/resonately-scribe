@@ -9,16 +9,20 @@ import { useKeepAwake } from 'expo-keep-awake';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from './AuthContext';
 import Timer from '@/components/Timer';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import analytics from '@react-native-firebase/analytics';
 import CreateMeetingSheet from './CreateMeetingSheet';
 import { FAB, IconButton, useTheme, ActivityIndicator } from 'react-native-paper';
 import { Appointment } from './CalendarAppointments';
+import { RootStackParamList } from './_layout';
 import {
   getRecordingUri,
   storeRecordingLocally,
   uploadChunkToServer,
+  listRecordingsAsJson,
   deleteRecordingFolder,
-  deleteStaleRecordings
+  deleteStaleRecordings,
+  deleteRecordingsByAge
 } from './RecordUtils';
 import { saveRecordings, loadRecordings, clearRecordings, displayRecordings } from './AsyncStorageUtils';
 import LogoutChecker from './LogoutChecker';
@@ -26,6 +30,8 @@ import uuid from 'react-native-uuid';
 import CalendarAppointments from './CalendarAppointments';
 import TimelineCalendarScreen from './SampleTimeline';
 import Constants from 'expo-constants';
+import AppointmentManager from './AppointmentManager';
+import TrackPlayer, { State } from 'react-native-track-player';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -71,13 +77,21 @@ export interface Chunk {
   retryCount: number;
 }
 
+// Define the navigation prop type
+type RecordingScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+// Update the Props type to include the navigation prop
+type Props = {
+  navigation: RecordingScreenNavigationProp;
+};
+
 const MAX_CHUNK_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 const CHUNK_UPLOAD_FREQUENCY = 10 * 1000; // 10 seconds
 const DELETE_RECORDINGS_RUN_REQUENCY = 60 * 1000; // every minute
-const MAX_RECORDINGS_AGE = 1 * 24 * 60 * 60 * 1000; // 2 day
+const MAX_RECORDINGS_AGE = 2 * 24 * 60 * 60 * 1000; // 2 days
 const MAX_DIR_AGE = 2 * 24 * 60 * 60 * 1000; // 10 days
 
-const RecordingScreen = (): JSX.Element => {
+const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   useKeepAwake(); // Keeps the app awake while this component is mounted
 
   const { tenantName } = useAuth().tenantDetails;
@@ -132,33 +146,36 @@ const RecordingScreen = (): JSX.Element => {
   };
 
 
-  const handleChunkCreation = async (isLastChunk: boolean = false) => {
-    try {
-      await stopAndUnloadRecording(recordingRef.current);
-      const localFileUri = await handleRecordingUri(recordingRef.current);
+  // const handleChunkCreation = async (isLastChunk: boolean = false) => {
+  //   try {
+  //     await stopAndUnloadRecording(recordingRef.current);
+  //     const localFileUri = await handleRecordingUri(recordingRef.current);
 
-      if (localFileUri) {
-        const chunk = createChunk(localFileUri, chunkStartTimeRef.current!, new Date(), isLastChunk);
-        await addChunkToAsyncStorage(chunk); // Add chunk to async storage
-        incrementChunkCounter();
-        // Log the event for chunk creation
-        analytics().logEvent('chunk_created', {
-          recording_id: recordingIdRef.current,
-          chunk_position: chunk.position,
-          is_last_chunk: chunk.isLastChunk,
-        });
-      }
+  //     if (localFileUri) {
+  //       const chunk = createChunk(localFileUri, chunkStartTimeRef.current!, new Date(), isLastChunk);
+  //       await addChunkToAsyncStorage(chunk); // Add chunk to async storage
+  //       incrementChunkCounter();
+  //       // Log the event for chunk creation
+  //       analytics().logEvent('chunk_created', {
+  //         recording_id: recordingIdRef.current,
+  //         chunk_position: chunk.position,
+  //         is_last_chunk: chunk.isLastChunk,
+  //       });
+  //     }
 
-    } catch (error: any) {
-      console.error(error.message);
-    }
-  };
+  //   } catch (error: any) {
+  //     console.error(error.message);
+  //   }
+  // };
   
   const setRefreshAppointments = (refreshFunc: () => void) => {
     refreshAppointmentsRef.current = refreshFunc;
   };
 
   const deleteOldRecordings = async () => {
+    const recordingsAsJson = await listRecordingsAsJson();
+    await deleteRecordingsByAge(recordingsAsJson, MAX_RECORDINGS_AGE);
+    console.log(recordingsAsJson);
     console.log('Running deleteOldRecordings function...');
     // await deleteStaleRecordings(MAX_DIR_AGE * 1000);
 
@@ -204,130 +221,139 @@ const RecordingScreen = (): JSX.Element => {
     console.log('Recordings storage updated.');
   };
 
-  const addChunkToAsyncStorage = async (chunk: Chunk) => {
-    const updatedRecordings = recordingsRef.current.map((rec) => {
-      if (rec.id === recordingIdRef.current) {
-        if (!rec.chunks) {
-          rec.chunks = [];
-        }
-        rec.chunks.push(chunk);
-      }
-      return rec;
-    });
-    console.log('addChunkToAsyncStorage');
-    console.log(updatedRecordings);
-    await saveRecordings(updatedRecordings); // Save updated recordings
-    updateRecordingsState(updatedRecordings);
-  };
+//   const addChunkToAsyncStorage = async (chunk: Chunk) => {
+//     const updatedRecordings = recordingsRef.current.map((rec) => {
+//       if (rec.id === recordingIdRef.current) {
+//         if (!rec.chunks) {
+//           rec.chunks = [];
+//         }
+//         rec.chunks.push(chunk);
+//       }
+//       return rec;
+//     });
+//     console.log('addChunkToAsyncStorage');
+//     console.log(updatedRecordings);
+//     await saveRecordings(updatedRecordings); // Save updated recordings
+//     updateRecordingsState(updatedRecordings);
+//   };
 
-  const incrementChunkCounter = () => {
-    const updatedRecordings = recordingsRef.current.map((rec) => {
-      if (rec.id === recordingIdRef.current) {
-        rec.chunkCounter = (rec.chunkCounter ?? 0) + 1;
-      }
-      return rec;
-    });
-    saveRecordings(updatedRecordings); // Save updated recordings
-    updateRecordingsState(updatedRecordings);
-  };
+//   const incrementChunkCounter = () => {
+//     const updatedRecordings = recordingsRef.current.map((rec) => {
+//       if (rec.id === recordingIdRef.current) {
+//         rec.chunkCounter = (rec.chunkCounter ?? 0) + 1;
+//       }
+//       return rec;
+//     });
+//     saveRecordings(updatedRecordings); // Save updated recordings
+//     updateRecordingsState(updatedRecordings);
+//   };
 
-  const uploadChunk = async (chunk: Chunk, recording: Recording, tenantName: string) => {
-    const success = await uploadChunkToServer(chunk, recording, tenantName);
-    if (success) {
-        chunk.status = 'uploaded';
-        await saveUpdatedRecordingsState();
+//   const uploadChunk = async (chunk: Chunk, recording: Recording, tenantName: string) => {
+//     const success = await uploadChunkToServer(chunk, recording, tenantName);
+//     if (success) {
+//         chunk.status = 'uploaded';
+//         await saveUpdatedRecordingsState();
         
-        // Log the event for successful chunk upload
-        analytics().logEvent('chunk_upload_success', {
-            recording_id: recording.id,
-            chunk_position: chunk.position,
-        });
+//         // Log the event for successful chunk upload
+//         analytics().logEvent('chunk_upload_success', {
+//             recording_id: recording.id,
+//             chunk_position: chunk.position,
+//         });
 
-        return true;
-    } else {
-        // Log the event for unsuccessful chunk upload
-        analytics().logEvent('chunk_upload_failure', {
-            recording_id: recording.id,
-            chunk_position: chunk.position,
-        });
+//         return true;
+//     } else {
+//         // Log the event for unsuccessful chunk upload
+//         analytics().logEvent('chunk_upload_failure', {
+//             recording_id: recording.id,
+//             chunk_position: chunk.position,
+//         });
 
-        return false;
-    }
-};
+//         return false;
+//     }
+// };
 
 
-  const saveUpdatedRecordingsState = async () => {
-    await saveRecordings(recordingsRef.current);
-    updateRecordingsState(recordingsRef.current);
-  };
+  // const saveUpdatedRecordingsState = async () => {
+  //   await saveRecordings(recordingsRef.current);
+  //   updateRecordingsState(recordingsRef.current);
+  // };
 
-  const processChunks = async () => {
-    console.log('processChunks');
-    for (const recording of recordingsRef.current) {
-      let uploadSuccessful = false;
-      if (recording.status !== 'Completed') {
-        // Sort chunks by position in ascending order
-        recording.chunks.sort((a, b) => a.position - b.position);
+  // const processChunks = async () => {
+  //   console.log('processChunks');
+  //   for (const recording of recordingsRef.current) {
+  //     let uploadSuccessful = false;
+  //     if (recording.status !== 'Completed') {
+  //       // Sort chunks by position in ascending order
+  //       recording.chunks.sort((a, b) => a.position - b.position);
 
-        for (const chunk of recording.chunks) {
-          if (chunk.status === 'created') {
-            console.log(chunk);
-            await saveUpdatedRecordingsState();
+  //       for (const chunk of recording.chunks) {
+  //         if (chunk.status === 'created') {
+  //           console.log(chunk);
+  //           await saveUpdatedRecordingsState();
 
-            const uploadSuccess = await uploadChunk(chunk, recording, tenantName);
-            if (!uploadSuccess) {
-              break; // Stop processing further chunks if upload fails
-            }
-            if (chunk.isLastChunk) {
-              console.log('chunk.isLastChunk');
-              console.log(chunk.isLastChunk);
-              recording.status = 'Uploading';
-              if (!recording.endDate) {
-                recording.endDate = new Date().toISOString();
-              }
-            }
-          }
-        }
+  //           const uploadSuccess = await uploadChunk(chunk, recording, tenantName);
+  //           if (!uploadSuccess) {
+  //             break; // Stop processing further chunks if upload fails
+  //           }
+  //           if (chunk.isLastChunk) {
+  //             console.log('chunk.isLastChunk');
+  //             console.log(chunk.isLastChunk);
+  //             recording.status = 'Uploading';
+  //             if (!recording.endDate) {
+  //               recording.endDate = new Date().toISOString();
+  //             }
+  //           }
+  //         }
+  //       }
         
-        let hasCreatedChunks = false;
-        for (const chunk of recording.chunks) {
-          if (chunk.status === 'created') {
-            hasCreatedChunks = true;
-            break;
-          }
-        }
+  //       let hasCreatedChunks = false;
+  //       for (const chunk of recording.chunks) {
+  //         if (chunk.status === 'created') {
+  //           hasCreatedChunks = true;
+  //           break;
+  //         }
+  //       }
 
-        if (!hasCreatedChunks && recording.chunks.length > 0 && recording.endDate) {
-            recording.status = 'Completed';
-          await saveUpdatedRecordingsState();
-        }
-      }
-    }
-  };
+  //       if (!hasCreatedChunks && recording.chunks.length > 0 && recording.endDate) {
+  //           recording.status = 'Completed';
+  //         await saveUpdatedRecordingsState();
+  //       }
+  //     }
+  //   }
+  // };
 
-  const uploadChunksPeriodically = async () => {
-    uploadIntervalRef.current = setInterval(async () => {
-      if (!isProcessingRef.current) {
-        isProcessingRef.current = true;
-        await deleteOldRecordings();
-        await loadAndProcessChunks();
-        isProcessingRef.current = false;
-      }
-    }, CHUNK_UPLOAD_FREQUENCY); // 10 seconds interval
-  };
+  // const uploadChunksPeriodically = async () => {
+  //   uploadIntervalRef.current = setInterval(async () => {
+  //     if (!isProcessingRef.current) {
+  //       isProcessingRef.current = true;
+  //       await deleteOldRecordings();
+  //       await loadAndProcessChunks();
+  //       isProcessingRef.current = false;
+  //     }
+  //   }, CHUNK_UPLOAD_FREQUENCY); // 10 seconds interval
+  // };
 
-  const loadAndProcessChunks = async () => {
-    const savedRecordings = await loadRecordings();
-    updateRecordingsState(savedRecordings);
-    try {
-      await processChunks();
-    } catch (err) {
-      console.log('Error processing chunks');
-    }
-  };
+  // const loadAndProcessChunks = async () => {
+  //   const savedRecordings = await loadRecordings();
+  //   updateRecordingsState(savedRecordings);
+  //   try {
+  //     await processChunks();
+  //   } catch (err) {
+  //     console.log('Error processing chunks');
+  //   }
+  // };
 
+  
   useEffect(() => {
-    uploadChunksPeriodically();
+    AppointmentManager.uploadChunksPeriodically();    
+
+  }, []);
+  
+  useEffect(() => {
+    uploadIntervalRef.current = setInterval(async () => {
+        AppointmentManager.uploadChunksPeriodically();
+    }, CHUNK_UPLOAD_FREQUENCY); // 10 seconds interval
+    
 
     return () => {
       if (uploadIntervalRef.current) {
@@ -336,22 +362,22 @@ const RecordingScreen = (): JSX.Element => {
     };
   }, []);
 
-  useEffect(() => {
-    const fetchRecordings = async () => {
-      const savedRecordings = await loadRecordings();
-      updateRecordingsState(savedRecordings);
-    };
+  // useEffect(() => {
+  //   const fetchRecordings = async () => {
+  //     const savedRecordings = await loadRecordings();
+  //     updateRecordingsState(savedRecordings);
+  //   };
 
-    fetchRecordings();
-  }, []);
+  //   fetchRecordings();
+  // }, []);
 
-  useEffect(() => {
-    return () => {
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-      }
-    };
-  }, []);
+  // useEffect(() => {
+  //   return () => {
+  //     if (recordingIntervalRef.current) {
+  //       clearInterval(recordingIntervalRef.current);
+  //     }
+  //   };
+  // }, []);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -363,343 +389,306 @@ const RecordingScreen = (): JSX.Element => {
     };
   }, []);
 
-  const requestPermissions = async () => {
-    console.log('Requesting permissions...');
-    const permission = await Audio.requestPermissionsAsync();
-    if (permission.status !== 'granted') {
-      throw new Error('Permission to access microphone is required!');
-    }
-  };
+  // const requestPermissions = async () => {
+  //   console.log('Requesting permissions...');
+  //   const permission = await Audio.requestPermissionsAsync();
+  //   if (permission.status !== 'granted') {
+  //     throw new Error('Permission to access microphone is required!');
+  //   }
+  // };
 
-  const muteRecording = async () => {
-    console.log('pauseRecording');
-    setIsPaused(true);
-    if (recordingIdRef.current) {
-      await pauseRecording(recordingRef.current);
-    }
-  };
+  // const muteRecording = async () => {
+  //   console.log('pauseRecording');
+  //   setIsPaused(true);
+  //   if (recordingIdRef.current) {
+  //     await pauseRecording(recordingRef.current);
+  //   }
+  // };
 
-  const unmuteRecording = async () => {
-    console.log('unmuteRecording');
-    setIsPaused(false);
-    if (recordingIdRef.current) {
-      await resumeRecording(recordingRef.current);
-    }
-  };
+  // const unmuteRecording = async () => {
+  //   console.log('unmuteRecording');
+  //   setIsPaused(false);
+  //   if (recordingIdRef.current) {
+  //     await resumeRecording(recordingRef.current);
+  //   }
+  // };
 
-  const createRecording = async () => {
-    const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-    const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+  // const createRecording = async () => {
+  //   const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  //   const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
 
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'x-tenant-name': tenantName,
-    };
+  //   const headers: HeadersInit = {
+  //     'Content-Type': 'application/json',
+  //     'x-tenant-name': tenantName,
+  //   };
 
-    if (sessionCookie) {
-      headers['Cookie'] = sessionCookie;
-    }
-    if (userEmail) {
-      headers['created-by'] = userEmail; // replace with actual user id or username
-    }
+  //   if (sessionCookie) {
+  //     headers['Cookie'] = sessionCookie;
+  //   }
+  //   if (userEmail) {
+  //     headers['created-by'] = userEmail; // replace with actual user id or username
+  //   }
 
-    try {
-      console.log(sessionCookie);
-      console.log(userEmail);
-      console.log(tenantName);
-      const response = await fetch(`${API_BASE_URL}/server/v1/start-recording`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          recordingStartTime: new Date().toISOString(), // replace with actual recording start time
-          recordingType: 'Audio', // replace with actual recording type
-          status: 'STARTED', // replace with actual status
-        }),
-      });
+  //   try {
+  //     console.log(sessionCookie);
+  //     console.log(userEmail);
+  //     console.log(tenantName);
+  //     const response = await fetch(`${API_BASE_URL}/server/v1/start-recording`, {
+  //       method: 'POST',
+  //       headers: {
+  //         ...headers,
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         recordingStartTime: new Date().toISOString(), // replace with actual recording start time
+  //         recordingType: 'Audio', // replace with actual recording type
+  //         status: 'STARTED', // replace with actual status
+  //       }),
+  //     });
 
-      const result = await response.json();
-      console.log(response);
+  //     const result = await response.json();
+  //     console.log(response);
 
-      if (response.ok) {
-        console.log('result.recordingId');
-        console.log(result.recordingId);
-        return result.recordingId;
-      } else {
-        Alert.alert('Error', result.message || 'Failed to start recording');
-      }
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      Alert.alert('Error', 'An error occurred while starting the recording');
-    } finally {
-      setStartLoading(false);
-      setButtonDisabled(false);
-    }
+  //     if (response.ok) {
+  //       console.log('result.recordingId');
+  //       console.log(result.recordingId);
+  //       return result.recordingId;
+  //     } else {
+  //       Alert.alert('Error', result.message || 'Failed to start recording');
+  //     }
+  //   } catch (error) {
+  //     console.error('Error starting recording:', error);
+  //     Alert.alert('Error', 'An error occurred while starting the recording');
+  //   } finally {
+  //     setStartLoading(false);
+  //     setButtonDisabled(false);
+  //   }
 
-    return null;
-  };
+  //   return null;
+  // };
 
-  const createLocalRecording = async () => {
-    console.log('Creating recording on local...');
-    const newRecordingId = uuid.v4().toString();
-    return newRecordingId;
-  };
+  // const createLocalRecording = async () => {
+  //   console.log('Creating recording on local...');
+  //   const newRecordingId = uuid.v4().toString();
+  //   return newRecordingId;
+  // };
 
-  const setAudioMode = async () => {
-    console.log('Setting audio mode...');
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-      interruptionModeIOS: 0,
-      staysActiveInBackground: true,
-      interruptionModeAndroid: 1,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: true,
-    });
-  };
+  // const setAudioMode = async () => {
+  //   console.log('Setting audio mode...');
+  //   await Audio.setAudioModeAsync({
+  //     allowsRecordingIOS: true,
+  //     playsInSilentModeIOS: true,
+  //     interruptionModeIOS: 0,
+  //     staysActiveInBackground: true,
+  //     interruptionModeAndroid: 1,
+  //     shouldDuckAndroid: true,
+  //     playThroughEarpieceAndroid: true,
+  //   });
+  // };
 
-  const startAudioRecording = async () => {
-    console.log('Starting recording...');
+  // const startAudioRecording = async () => {
+  //   console.log('Starting recording...');
     
-    const { recording } = await Audio.Recording.createAsync(
-      Audio.RecordingOptionsPresets.HIGH_QUALITY
-    );
-    chunkStartTimeRef.current = new Date(); // Set the start time for the chunk
-    return recording;
-  };
+  //   const { recording } = await Audio.Recording.createAsync(
+  //     Audio.RecordingOptionsPresets.HIGH_QUALITY
+  //   );
+  //   chunkStartTimeRef.current = new Date(); // Set the start time for the chunk
+  //   return recording;
+  // };
 
-  const addNewRecordingToList = async (newRecordingId: string, appointmentId: string) => {
-    const newRecording: Recording = {
-      id: newRecordingId,
-      appointmentId: appointmentId,
-      startDate: new Date().toISOString(),
-      endDate: null,
-      status: 'In Progress',
-      sound: null,
-      chunks: [],
-      chunkCounter: 0,
-    };
+  // const addNewRecordingToList = async (newRecordingId: string, appointmentId: string) => {
+  //   const newRecording: Recording = {
+  //     id: newRecordingId,
+  //     appointmentId: appointmentId,
+  //     startDate: new Date().toISOString(),
+  //     endDate: null,
+  //     status: 'In Progress',
+  //     sound: null,
+  //     chunks: [],
+  //     chunkCounter: 0,
+  //   };
 
-    const updatedRecordings = [newRecording, ...recordingsRef.current];
-    await saveRecordings(updatedRecordings); // Save updated recordings
-    updateRecordingsState(updatedRecordings);
+  //   const updatedRecordings = [newRecording, ...recordingsRef.current];
+  //   await saveRecordings(updatedRecordings); // Save updated recordings
+  //   updateRecordingsState(updatedRecordings);
 
-    return newRecording;
-  };
+  //   return newRecording;
+  // };
 
-  const stopRecordingOnServer = async (recordingId: string, endDate: string) => {
-    const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-    const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+  // const stopAndUnloadRecording = async (recording: Audio.Recording | null) => {
+  //   await recording?.stopAndUnloadAsync();
+  // };
 
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'x-tenant-name': tenantName,
-    };
+  // const handleMuteToggle = async () => {
+  //   if (isPaused) {
+  //       await resumeRecording(recordingRef.current);
+  //   } else {
+  //       await pauseRecording(recordingRef.current);
+  //   }
+  //   setIsPaused(!isPaused);
 
-    if (sessionCookie) {
-      headers['Cookie'] = sessionCookie;
-    }
-    console.log('stopRecordingOnServer');
-    console.log(endDate);
-    try {
-      const response = await fetch(`${API_BASE_URL}/server/v1/stop-recording`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          recordingId: recordingId,
-          recordingEndTime: new Date().toISOString()
-        }),
-      });
+  //   // Log the event when mute/unmute is toggled
+  //   analytics().logEvent('toggle_mute', {
+  //       is_paused: !isPaused,
+  //   });
+  // };
 
-      if (response.ok) {
-        console.log('Recording stopped successfully on the server.');
-        return true;
-      } else {
-        console.error('Failed to stop recording on the server:', response.statusText);
-        return false;
-      }
-    } catch (error) {
-      console.error('Error stopping recording on the server:', error);
-      return false;
-    }
-  };
+  // const pauseRecording = async (recording: Audio.Recording | null) => {
+  //   if (recording) {
+  //     await recording?.pauseAsync();
+  //   }
+  // };
 
-  const stopAndUnloadRecording = async (recording: Audio.Recording | null) => {
-    await recording?.stopAndUnloadAsync();
-  };
+  // const resumeRecording = async (recording: Audio.Recording | null) => {
+  //   await recording?.startAsync();
+  // };
 
-  const handleMuteToggle = async () => {
-    if (isPaused) {
-        await resumeRecording(recordingRef.current);
-    } else {
-        await pauseRecording(recordingRef.current);
-    }
-    setIsPaused(!isPaused);
+  // const handleRecordingUri = async (recording: Audio.Recording | null) => {
+  //   if (recording) {
+  //     const recordingUri = await getRecordingUri(recording);
+  //     if (recordingUri && recordingIdRef && recordingIdRef.current) {
+  //       return storeRecordingLocally(recordingUri, recordingIdRef.current);
+  //     } else {
+  //       throw new Error('Recording URI not found');
+  //     }
+  //   } else {
+  //     throw new Error('Failed to unload recording');
+  //   }
+  // };
 
-    // Log the event when mute/unmute is toggled
-    analytics().logEvent('toggle_mute', {
-        is_paused: !isPaused,
-    });
-  };
+  // const createChunk = (localFileUri: string, chunkStartTime: Date, chunkEndTime: Date, isLastChunk: boolean): Chunk => {
+  //   const recording = recordingsRef.current.find((rec) => rec.id === recordingIdRef.current);
+  //   const chunkCounter = recording?.chunkCounter ?? 0;
 
-  const pauseRecording = async (recording: Audio.Recording | null) => {
-    if (recording) {
-      await recording?.pauseAsync();
-    }
-  };
+  //   return {
+  //     position: chunkCounter,
+  //     isLastChunk: isLastChunk,
+  //     uri: localFileUri,
+  //     startTime: chunkStartTime.toISOString(),
+  //     endTime: chunkEndTime.toISOString(),
+  //     status: 'created',
+  //     retryCount: 0,
+  //   };
+  // };
 
-  const resumeRecording = async (recording: Audio.Recording | null) => {
-    await recording?.startAsync();
-  };
+  // const updateStatus = (status: string) => {
+  //   const updatedRecordings = recordingsRef.current.map((rec) =>
+  //     rec.id === recordingIdRef.current ? { ...rec, status } : rec
+  //   );
+  //   saveRecordings(updatedRecordings); // Save updated recordings
+  //   updateRecordingsState(updatedRecordings);
+  // };
 
-  const handleRecordingUri = async (recording: Audio.Recording | null) => {
-    if (recording) {
-      const recordingUri = await getRecordingUri(recording);
-      if (recordingUri && recordingIdRef && recordingIdRef.current) {
-        return storeRecordingLocally(recordingUri, recordingIdRef.current);
-      } else {
-        throw new Error('Recording URI not found');
-      }
-    } else {
-      throw new Error('Failed to unload recording');
-    }
-  };
+  // const updateRecordingEndDate = (recordingId: string, endDate: string) => {
+  //   const updatedRecordings = recordingsRef.current.map((rec) => {
+  //     if (rec.id === recordingId) {
+  //       return { ...rec, endDate };
+  //     }
+  //     return rec;
+  //   });
+  //   saveRecordings(updatedRecordings); // Save updated recordings
+  //   updateRecordingsState(updatedRecordings); // Update the state and ref
+  // };
 
-  const createChunk = (localFileUri: string, chunkStartTime: Date, chunkEndTime: Date, isLastChunk: boolean): Chunk => {
-    const recording = recordingsRef.current.find((rec) => rec.id === recordingIdRef.current);
-    const chunkCounter = recording?.chunkCounter ?? 0;
+  // const finalizeRecording = async () => {
 
-    return {
-      position: chunkCounter,
-      isLastChunk: isLastChunk,
-      uri: localFileUri,
-      startTime: chunkStartTime.toISOString(),
-      endTime: chunkEndTime.toISOString(),
-      status: 'created',
-      retryCount: 0,
-    };
-  };
+  //   recordingRef.current = null;
+  //   bottomSheetRef.current?.snapToIndex(0); // Close the bottom drawer to 25%
+  //   setStopLoading(false);
+  //   setButtonDisabled(false); // Re-enable the button after API call is completed
+  // };
 
-  const updateStatus = (status: string) => {
-    const updatedRecordings = recordingsRef.current.map((rec) =>
-      rec.id === recordingIdRef.current ? { ...rec, status } : rec
-    );
-    saveRecordings(updatedRecordings); // Save updated recordings
-    updateRecordingsState(updatedRecordings);
-  };
-
-  const updateRecordingEndDate = (recordingId: string, endDate: string) => {
-    const updatedRecordings = recordingsRef.current.map((rec) => {
-      if (rec.id === recordingId) {
-        return { ...rec, endDate };
-      }
-      return rec;
-    });
-    saveRecordings(updatedRecordings); // Save updated recordings
-    updateRecordingsState(updatedRecordings); // Update the state and ref
-  };
-
-  const finalizeRecording = async () => {
-
-    recordingRef.current = null;
-    bottomSheetRef.current?.snapToIndex(0); // Close the bottom drawer to 25%
-    setStopLoading(false);
-    setButtonDisabled(false); // Re-enable the button after API call is completed
-  };
-
-  const initializeRecording = async (appointmentId: string) => {
-    if (recordingRef.current) {
-      // Stop any ongoing recording before starting a new one
-      await handleChunkCreation(true); // Finalize the last chunk of the ongoing recording
-      recordingRef.current = null;
-      setIsRecording(false);
-    }
+  // const initializeRecording = async (appointmentId: string) => {
+  //   if (recordingRef.current) {
+  //     // Stop any ongoing recording before starting a new one
+  //     await handleChunkCreation(true); // Finalize the last chunk of the ongoing recording
+  //     recordingRef.current = null;
+  //     setIsRecording(false);
+  //   }
     
-    await requestPermissions();
-    const newRecordingId = await createLocalRecording();
-    updateRecordingId(newRecordingId); // Set the recordingId state
-    await setAudioMode();
-    const newRecording = await startAudioRecording();
-    await addNewRecordingToList(newRecordingId, appointmentId);
-    recordingRef.current = newRecording;
-    setInitialStartTime(Date.now());
-    setIsRecording(true);
-  };
+  //   await requestPermissions();
+  //   const newRecordingId = await createLocalRecording();
+  //   updateRecordingId(newRecordingId); // Set the recordingId state
+  //   await setAudioMode();
+  //   const newRecording = await startAudioRecording();
+  //   await addNewRecordingToList(newRecordingId, appointmentId);
+  //   recordingRef.current = newRecording;
+  //   setInitialStartTime(Date.now());
+  //   setIsRecording(true);
+  // };
   
 
-  const startRecording = async (appointmentId: string) => {
-    try {
-      setStartLoading(true);
-      setButtonDisabled(true); // Disable the button immediately when clicked
-      setIsPaused(false); // Reset mute button state to not muted
+  // const startRecording = async (appointmentId: string) => {
+  //   try {
+  //     setStartLoading(true);
+  //     setButtonDisabled(true); // Disable the button immediately when clicked
+  //     setIsPaused(false); // Reset mute button state to not muted
 
-      await initializeRecording(appointmentId);
+  //     await initializeRecording(appointmentId);
 
-      // Set up interval to stop and restart the recording every minute
-      recordingIntervalRef.current = setInterval(async () => {
-        try {
-          console.log('Creating new chunk');
-          await handleChunkCreation();
-          const newRecording = await startAudioRecording();
-          recordingRef.current = newRecording;
-        } catch (error) {
-          console.error('Error running handleChunkCreation: ' + error);
-        }
-      }, MAX_CHUNK_DURATION_MS);
+  //     // Set up interval to stop and restart the recording every minute
+  //     recordingIntervalRef.current = setInterval(async () => {
+  //       try {
+  //         console.log('Creating new chunk');
+  //         await handleChunkCreation();
+  //         const newRecording = await startAudioRecording();
+  //         recordingRef.current = newRecording;
+  //       } catch (error) {
+  //         console.error('Error running handleChunkCreation: ' + error);
+  //       }
+  //     }, MAX_CHUNK_DURATION_MS);
 
-      bottomSheetRef.current?.snapToIndex(0); // Expand the bottom drawer to 40%
-      updateStatus('Recording');
-    } catch (err: any) {
-      console.error('Failed to start recording', err);
-      // Alert.alert('Error', err.message);
-    } finally {
-      setStartLoading(false);
-      setButtonDisabled(false); // Re-enable the button after API call is completed
-    }
-  };
+  //     bottomSheetRef.current?.snapToIndex(0); // Expand the bottom drawer to 40%
+  //     updateStatus('Recording');
+  //   } catch (err: any) {
+  //     console.error('Failed to start recording', err);
+  //     // Alert.alert('Error', err.message);
+  //   } finally {
+  //     setStartLoading(false);
+  //     setButtonDisabled(false); // Re-enable the button after API call is completed
+  //   }
+  // };
 
-  const stopRecording = async () => {
-    console.log('stopRecording');
-    // Log the event when recording stops
-    analytics().logEvent('stop_recording', {
-      recording_id: recordingIdRef.current,
-    });
-    setIsRecording(false);
-    setStopLoading(true);
-    setButtonDisabled(true); // Disable the button immediately when clicked
+  // const stopRecording = async () => {
+  //   console.log('stopRecording');
+  //   // Log the event when recording stops
+  //   analytics().logEvent('stop_recording', {
+  //     recording_id: recordingIdRef.current,
+  //   });
+  //   setIsRecording(false);
+  //   setStopLoading(true);
+  //   setButtonDisabled(true); // Disable the button immediately when clicked
 
-    try {
-      // Stop chunking.
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-      }
+  //   try {
+  //     // Stop chunking.
+  //     if (recordingIntervalRef.current) {
+  //       clearInterval(recordingIntervalRef.current);
+  //     }
 
-      // set end date of the recording.
-      const recording = recordingsRef.current.find(rec => rec.id === recordingIdRef.current);
-      const endDate = new Date().toISOString();
-      if (recording) {
-        updateStatus('Uploading');
-        recording.endDate = endDate;
-        updateRecordingsState([...recordingsRef.current]);
-        await saveRecordings(recordingsRef.current);
-      }
+  //     // set end date of the recording.
+  //     const recording = recordingsRef.current.find(rec => rec.id === recordingIdRef.current);
+  //     const endDate = new Date().toISOString();
+  //     if (recording) {
+  //       updateStatus('Uploading');
+  //       recording.endDate = endDate;
+  //       updateRecordingsState([...recordingsRef.current]);
+  //       await saveRecordings(recordingsRef.current);
+  //     }
 
-      await handleChunkCreation(true);
+  //     await handleChunkCreation(true);
 
-      if (!isProcessingRef.current) {
-        isProcessingRef.current = true;
-        loadAndProcessChunks();
-        isProcessingRef.current = false;
-      }
+  //     if (!isProcessingRef.current) {
+  //       isProcessingRef.current = true;
+  //       loadAndProcessChunks();
+  //       isProcessingRef.current = false;
+  //     }
 
-    } catch (error: any) {
-      console.error(error.message);
-    } finally {
-      finalizeRecording();
-    }
-  };
+  //   } catch (error: any) {
+  //     console.error(error.message);
+  //   } finally {
+  //     finalizeRecording();
+  //   }
+  // };
 
   const handleDelete = async (id: string) => {
     const updatedRecordings = recordingsRef.current.filter((rec) => rec.id !== id);
@@ -761,20 +750,23 @@ const RecordingScreen = (): JSX.Element => {
         setIsSheetOpen={setIscreateMeetingSheetOpen} 
         setRefreshAppointments={setRefreshAppointments}
       />
-      {/* <TimelineCalendarScreen></TimelineCalendarScreen> */}
       <CreateMeetingSheet
         bottomSheetRef={createMeetingSheetRef}
         isSheetOpen={iscreateMeetingSheetOpen}
         setIsSheetOpen={setIscreateMeetingSheetOpen}
         refreshAppointments={refreshAppointmentsRef.current}
         event={selectedEvent} // Pass the selected event to the sheet
-        handleJoinMeeting={startRecording}
-        handleMuteToggle={handleMuteToggle}
-        handleEndCall={stopRecording}
+        // handleJoinMeeting={startRecording}
+        // handleMuteToggle={handleMuteToggle}
+        // handleEndCall={stopRecording}
         setAppointmentId={updateAppointmentId}
         isMuted={isPaused}
         isMeetingStarted={isRecording}
         initialStartTime={initialStartTime}
+        navigation={navigation}
+        collapseSheet={() => {
+          setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
+        }}
       />
       {!isRecording && (
         <FAB
@@ -802,69 +794,6 @@ const RecordingScreen = (): JSX.Element => {
           label={iscreateMeetingSheetOpen ? "" : "New Appointment"}
         />
       )}
-      {/* <RecordingList recordings={recordings} /> */}
-      {/* <BottomSheet
-        ref={bottomSheetRef}
-        index={0} // Start at the first snap point (25%)
-        snapPoints={['25%']}
-        onChange={(index) => {
-          if (index < 0) {
-            bottomSheetRef.current?.snapToIndex(0);
-          }
-        }}
-      >
-        <View style={[styles.bottomSheet, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.buttonContainer}>
-            <View style={styles.fabContainer}>
-              {isRecording ? (
-                <>
-                  <FAB
-                    style={[
-                      styles.fab,
-                      styles.stopButton,
-                      styles.endVisitButton, // Apply fixed width style
-                      buttonDisabled && styles.disabledButton
-                    ]}
-                    icon="stop"
-                    onPress={stopRecording}
-                    disabled={buttonDisabled}
-                    label="End Visit"
-                    color="red" // Set the icon color conditionally
-                  />
-                  <View style={styles.timerContainer}>
-                    <Timer isRunning={isRecording} isPaused={isPaused} initialStartTime={initialStartTime} />
-                  </View>
-                </>
-              ) : (
-                <FAB
-                  style={[
-                    styles.fab,
-                    styles.fullWidthFab, // Apply full width style
-                    { backgroundColor: theme.colors.primary },
-                    buttonDisabled && styles.disabledButton
-                  ]}
-                  icon={buttonDisabled ? () => <ActivityIndicator animating={true} color="white" /> : "plus"}
-                  onPress={startRecording}
-                  disabled={buttonDisabled}
-                  label={buttonDisabled ? "" : "Start Appointment"}
-                  color="white"
-                />
-              )}
-              {isRecording && (
-                <FAB
-                  style={[
-                    styles.muteButton,
-                    isPaused ? styles.muted : null,
-                  ]}
-                  icon={isPaused ? "microphone-off" : "microphone"}
-                  onPress={isPaused ? unmuteRecording : muteRecording}
-                  color={isPaused ? "red" : "black"} // Set the icon color conditionally
-                />
-              )}
-            </View>
-          </View>
-        </View>
-      </BottomSheet> */}
     </>
   )}
 </View>

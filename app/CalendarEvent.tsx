@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, StyleSheet, View } from 'react-native';
+import { TouchableOpacity, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 
 interface Appointment {
@@ -23,7 +23,7 @@ const CalendarEvent: React.FC<CalendarEventProps> = ({ event, onPress }) => {
       // case 'created':
       //   return <View style={[styles.statusCircle, { backgroundColor: 'yellow' }]} />;
       case 'in progress':
-        return <View style={[styles.statusCircle, { backgroundColor: 'yellow' }]} />;
+        return <ActivityIndicator size="small" color={theme.colors.onPrimary} />;
       case 'completed':
         return null;
       default:
