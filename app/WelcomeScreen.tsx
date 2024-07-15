@@ -39,7 +39,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ updateHasAcceptedTermsInL
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Title style={[styles.title, { color: theme.colors.primary }]}>Welcome to Resonately</Title>
       <Text style={[styles.subtitle, { color: theme.colors.onBackground }]}>
-        The audiologist's companion
+        Made with ❤️ for Audiology
       </Text>
       <Modal
         animationType="slide"
@@ -61,12 +61,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ updateHasAcceptedTermsInL
       </Modal>
       <View style={styles.bottomContainer}>
         <Text style={[styles.description, { color: theme.colors.onBackground }]}>
-          By clicking the following button, you accept the{' '}
-          <Text style={styles.link} onPress={() => openModal('https://example.com/terms')}>
+          By clicking the button below, you accept the{' '}
+          <Text style={styles.link} onPress={() => openModal('https://www.getresonately.com/b2b/clinic/terms')}>
             terms and conditions
           </Text>{' '}
           and{' '}
-          <Text style={styles.link} onPress={() => openModal('https://example.com/privacy')}>
+          <Text style={styles.link} onPress={() => openModal('https://www.getresonately.com/b2b/clinic/privacy')}>
             privacy policy
           </Text>
           .

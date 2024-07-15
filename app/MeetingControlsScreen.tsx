@@ -39,7 +39,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     useEffect(() => {
         const initializeRecording = async () => {
             if (appointment) {
-                // await AppointmentManager.startRecording(appointment.id);
+                await AppointmentManager.startRecording(appointment.id);
             }
         };
 
@@ -135,18 +135,18 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
             <Text style={styles.title}>{appointment?.title}</Text>
             <View style={styles.profileContainer}>
                 <View style={styles.profileImageWrapper}>
-                    <FontAwesome5 name="notes-medical" size={50} color="#ffffff" />
+                    <FontAwesome5 name="comments" size={50} color="#ffffff" />
                 </View>
             </View>
             <View style={styles.controlGroup}>
                 <View style={styles.controls}>
-                    <FAB
+                    {/* <FAB
                         icon={muted ? "microphone-off" : "microphone"}
                         label={muted ? "Unmute" : "Mute"}
                         onPress={handleMuteToggle}
                         style={[styles.fab, styles.fabMutePause, muted && styles.fabToggled]}
                         color={muted ? 'red' : theme.colors.primary}
-                    />
+                    /> */}
                     <FAB
                         icon={paused ? "play" : "pause"}
                         label={paused ? "Resume" : "Pause"}

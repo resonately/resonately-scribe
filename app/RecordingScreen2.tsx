@@ -15,6 +15,7 @@ import CreateMeetingSheet from './CreateMeetingSheet';
 import { FAB, IconButton, useTheme, ActivityIndicator } from 'react-native-paper';
 import { Appointment } from './CalendarAppointments';
 import { RootStackParamList } from './_layout';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {
   getRecordingUri,
   storeRecordingLocally,
@@ -779,7 +780,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
               borderWidth: iscreateMeetingSheetOpen ? 1 : 0, // Add border for outlined style
               borderColor: theme.colors.primary, // Use primary color for border
           }}
-          icon={iscreateMeetingSheetOpen ? "close" : "plus"}
+          icon={() => iscreateMeetingSheetOpen ? <MaterialIcons name="close" size={25} color={theme.colors.primary} />:<MaterialIcons name="add-circle-outline" size={25} color="white" />}
           onPress={() => {
               setSelectedEvent(null);
               setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
