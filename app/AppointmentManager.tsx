@@ -114,7 +114,6 @@ class AppointmentManager {
           console.log('Recording is done');
         } else if (status.mediaServicesDidReset) {
           console.log('Media services reset, possibly due to microphone access loss');
-          // Handle the microphone access loss here, e.g., stop recording
           if (this.recordingRef) {
             this.stopRecording();
           }
