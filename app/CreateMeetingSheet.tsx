@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Text, Keyboard, TouchableWithoutFeedback, ActivityIndicator, Alert, Image } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { TextInput, Button, List, useTheme } from 'react-native-paper';
+import { TextInput, Button, List, useTheme, Divider } from 'react-native-paper';
 import { DatePickerModal, TimePickerModal } from 'react-native-paper-dates';
 import { en, registerTranslation } from 'react-native-paper-dates';
 import { format } from 'date-fns';
@@ -245,249 +245,260 @@ const CreateMeetingSheet: React.FC<CreateMeetingSheetProps> = ({
         return format(new Date(0, 0, 0, hours, minutes), 'hh:mm a');
     };
 
-    return (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <BottomSheet
-                ref={bottomSheetRef}
-                index={-1}
-                snapPoints={['100%']}
-                enablePanDownToClose={!isMeetingStarted}
-                onChange={(index) => {
-                    if (index === -1) {
-                        setIsSheetOpen(false);
-                        setCurrentAppointmentId(null);
-                        appointmentIdRef.current = null;
-                        analytics().logEvent('close_bottom_sheet', {
-                            element_type: 'bottom_sheet',
-                            event_type: 'on_close',
-                        });
-                    }
-                }}
-            >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <View style={[styles.bottomSheet, { backgroundColor: theme.colors.background }]}>
-                        <View style={styles.header}>
-                            <Text style={styles.bottomSheetTitle}>{event ? event.title : 'New Appointment'}</Text>
-                        </View>
+    // Inside the return statement, move the button section to a new View container at the bottom
+return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <BottomSheet
+            ref={bottomSheetRef}
+            index={-1}
+            snapPoints={['100%']}
+            enablePanDownToClose={!isMeetingStarted}
+            onChange={(index) => {
+                if (index === -1) {
+                    setIsSheetOpen(false);
+                    setCurrentAppointmentId(null);
+                    appointmentIdRef.current = null;
+                    analytics().logEvent('close_bottom_sheet', {
+                        element_type: 'bottom_sheet',
+                        event_type: 'on_close',
+                    });
+                }
+            }}
+        >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={[styles.bottomSheet, { backgroundColor: theme.colors.background }]}>
+                    <View style={styles.header}>
+                        <Text style={styles.bottomSheetTitle}>{event ? event.title : 'New Appointment'}</Text>
+                    </View>
+                    <Divider style={styles.divider} />
+                    <TextInput
+                        label="Select Appointment Type (Optional)"
+                        value={appointmentType}
+                        onChangeText={(text) => {
+                            setAppointmentType(text);
+                            fetchSuggestedTypes(text);
+                        }}
+                        mode="outlined"
+                        style={styles.input}
+                        dense={true}
+                        onFocus={() => fetchSuggestedTypes('')}
+                        disabled={!!event}
+                        right={<TextInput.Icon name="chevron-down" />}
+                    />
+                    {suggestedTypes.length > 0 && (
+                        <List.Section>
+                            {suggestedTypes.map((type) => (
+                                <List.Item
+                                    key={type}
+                                    title={type}
+                                    onPress={() => {
+                                        setAppointmentType(type);
+                                        setSuggestedTypes([]);
+                                        analytics().logEvent('select_appointment_type', {
+                                            page: 'appointment',
+                                            element_type: 'list_item',
+                                            event_type: 'on_select',
+                                            appointment_type: type,
+                                        });
+                                    }}
+                                />
+                            ))}
+                        </List.Section>
+                    )}
+                    <TextInput
+                        label="Add Patient (Optional)"
+                        value={patientName}
+                        onChangeText={setPatientName}
+                        mode="outlined"
+                        style={styles.input}
+                        disabled={!!event}
+                        dense={true}
+                        right={<TextInput.Icon name="chevron-down" />}
+                    />
+
+                    <Divider style={styles.divider} />
+
+                    <View style={styles.row}>
                         <TextInput
-                            label="Select Appointment Type (Optional)"
-                            value={appointmentType}
-                            onChangeText={(text) => {
-                                setAppointmentType(text);
-                                fetchSuggestedTypes(text);
+                            label="Start Date"
+                            value={startDate ? formatDate(startDate) : ''}
+                            onFocus={() => setShowStartDatePicker(true)}
+                            mode="outlined"
+                            dense={true}
+                            style={[styles.input, styles.halfInput]}
+                            disabled={!!event}
+                        />
+                        <DatePickerModal
+                            locale="en"
+                            visible={showStartDatePicker}
+                            mode="single"
+                            onDismiss={() => setShowStartDatePicker(false)}
+                            date={startDate}
+                            onConfirm={(params) => {
+                                setStartDate(params.date);
+                                setShowStartDatePicker(false);
+                                analytics().logEvent('select_start_date', {
+                                    page: 'appointment',
+                                    element_type: 'date_picker',
+                                    event_type: 'on_select',
+                                    start_date: params?.date?.toString(),
+                                });
                             }}
-                            mode="outlined"
-                            style={styles.input}
-                            onFocus={() => fetchSuggestedTypes('')}
-                            disabled={!!event}
-                            right={<TextInput.Icon name="chevron-down" />}
-                        />
-                        {suggestedTypes.length > 0 && (
-                            <List.Section>
-                                {suggestedTypes.map((type) => (
-                                    <List.Item
-                                        key={type}
-                                        title={type}
-                                        onPress={() => {
-                                            setAppointmentType(type);
-                                            setSuggestedTypes([]);
-                                            analytics().logEvent('select_appointment_type', {
-                                                page: 'appointment',
-                                                element_type: 'list_item',
-                                                event_type: 'on_select',
-                                                appointment_type: type,
-                                            });
-                                        }}
-                                    />
-                                ))}
-                            </List.Section>
-                        )}
-                        <TextInput
-                            label="Add Patient (Optional)"
-                            value={patientName}
-                            onChangeText={setPatientName}
-                            mode="outlined"
-                            style={styles.input}
-                            disabled={!!event}
-                            right={<TextInput.Icon name="chevron-down" />}
                         />
                         <TextInput
-                            label="Add Providers (Coming soon)"
-                            value={providerName}
-                            onChangeText={setProviderName}
-                            disabled={true}
+                            label="Start Time"
+                            value={formatTime(startTime.hours, startTime.minutes)}
+                            onFocus={() => setShowStartTimePicker(true)}
                             mode="outlined"
-                            style={styles.input}
-                            right={<TextInput.Icon name="chevron-down" />}
+                            dense={true}
+                            style={[styles.input, styles.halfInput]}
+                            disabled={!!event}
                         />
-                        <View style={styles.row}>
-                            <TextInput
-                                label="Start Date"
-                                value={startDate ? formatDate(startDate) : ''}
-                                onFocus={() => setShowStartDatePicker(true)}
-                                mode="outlined"
-                                style={[styles.input, styles.halfInput]}
-                                disabled={!!event}
-                            />
-                            <DatePickerModal
-                                locale="en"
-                                visible={showStartDatePicker}
-                                mode="single"
-                                onDismiss={() => setShowStartDatePicker(false)}
-                                date={startDate}
-                                onConfirm={(params) => {
-                                    setStartDate(params.date);
-                                    setShowStartDatePicker(false);
-                                    analytics().logEvent('select_start_date', {
-                                        page: 'appointment',
-                                        element_type: 'date_picker',
-                                        event_type: 'on_select',
-                                        start_date: params?.date?.toString(),
-                                    });
-                                }}
-                            />
-                            <TextInput
-                                label="Start Time"
-                                value={formatTime(startTime.hours, startTime.minutes)}
-                                onFocus={() => setShowStartTimePicker(true)}
-                                mode="outlined"
-                                style={[styles.input, styles.halfInput]}
-                                disabled={!!event}
-                            />
-                            <TimePickerModal
-                                locale="en"
-                                visible={showStartTimePicker}
-                                onDismiss={() => setShowStartTimePicker(false)}
-                                hours={startTime.hours}
-                                minutes={startTime.minutes}
-                                onConfirm={(params) => {
-                                    setStartTime({ hours: params.hours, minutes: params.minutes });
-                                    setShowStartTimePicker(false);
-                                    analytics().logEvent('select_start_time', {
-                                        page: 'appointment',
-                                        element_type: 'time_picker',
-                                        event_type: 'on_select',
-                                        start_time: `${params.hours}:${params.minutes}`,
-                                    });
-                                }}
-                            />
-                        </View>
-                        <View style={styles.row}>
-                            <TextInput
-                                label="End Date"
-                                value={endDate ? formatDate(endDate) : ''}
-                                onFocus={() => setShowEndDatePicker(true)}
-                                mode="outlined"
-                                style={[styles.input, styles.halfInput]}
-                                disabled={!!event}
-                            />
-                            <DatePickerModal
-                                locale="en"
-                                visible={showEndDatePicker}
-                                mode="single"
-                                onDismiss={() => setShowEndDatePicker(false)}
-                                date={endDate}
-                                onConfirm={(params) => {
-                                    setEndDate(params.date);
-                                    setShowEndDatePicker(false);
-                                    analytics().logEvent('select_end_date', {
-                                        page: 'appointment',
-                                        element_type: 'date_picker',
-                                        event_type: 'on_select',
-                                        end_date: params?.date?.toString(),
-                                    });
-                                }}
-                            />
-                            <TextInput
-                                label="End Time"
-                                value={formatTime(endTime.hours, endTime.minutes)}
-                                onFocus={() => setShowEndTimePicker(true)}
-                                mode="outlined"
-                                style={[styles.input, styles.halfInput]}
-                                disabled={!!event}
-                            />
-                            <TimePickerModal
-                                locale="en"
-                                visible={showEndTimePicker}
-                                onDismiss={() => setShowEndTimePicker(false)}
-                                hours={endTime.hours}
-                                minutes={endTime.minutes}
-                                onConfirm={(params) => {
-                                    setEndTime({ hours: params.hours, minutes: params.minutes });
-                                    setShowEndTimePicker(false);
-                                    analytics().logEvent('select_end_time', {
-                                        page: 'appointment',
-                                        element_type: 'time_picker',
-                                        event_type: 'on_select',
-                                        end_time: `${params.hours}:${params.minutes}`,
-                                    });
-                                }}
-                            />
-                        </View>
-                        {loading || creatingAppointment ? (
-                            <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
-                        ) : (
-                            <>
-                                {!currentAppointmentId && !isMeetingStarted && (
-                                    <>
-                                        <Button
-                                            mode="contained"
-                                            onPress={() => {
-                                                handleCreateMeeting();
-                                                analytics().logEvent('start_appointment_now', {
-                                                    page: 'appointment',
-                                                    element_type: 'button',
-                                                    event_type: 'on_click',
-                                                });
-                                            }}
-                                            style={[styles.createMeetingButton, styles.centeredButton]}
-                                            icon="calendar"
-                                            contentStyle={styles.buttonContent}
-                                            labelStyle={styles.buttonLabel}
-                                        >
-                                            Start Appointment Now
-                                        </Button>
-                                        <Button
-                                            mode="outlined"
-                                            onPress={() => {
-                                                handleCreateMeeting(false);
-                                                analytics().logEvent('schedule_appointment', {
-                                                    page: 'appointment',
-                                                    element_type: 'button',
-                                                    event_type: 'on_click',
-                                                });
-                                            }}
-                                            style={[styles.scheduleButton, styles.centeredButton]}
-                                            icon="calendar-clock"
-                                            contentStyle={styles.buttonContent}
-                                            labelStyle={styles.buttonLabel}
-                                        >
-                                            Schedule for Later
-                                        </Button>
-                                    </>
-                                )}
-                                {!loading && !creatingAppointment && currentAppointmentId && !isMeetingStarted && !showMeetingControls && (
+                        <TimePickerModal
+                            locale="en"
+                            visible={showStartTimePicker}
+                            onDismiss={() => setShowStartTimePicker(false)}
+                            hours={startTime.hours}
+                            minutes={startTime.minutes}
+                            onConfirm={(params) => {
+                                setStartTime({ hours: params.hours, minutes: params.minutes });
+                                setShowStartTimePicker(false);
+                                analytics().logEvent('select_start_time', {
+                                    page: 'appointment',
+                                    element_type: 'time_picker',
+                                    event_type: 'on_select',
+                                    start_time: `${params.hours}:${params.minutes}`,
+                                });
+                            }}
+                        />
+                    </View>
+                    <View style={styles.row}>
+                        <TextInput
+                            label="End Date"
+                            value={endDate ? formatDate(endDate) : ''}
+                            onFocus={() => setShowEndDatePicker(true)}
+                            mode="outlined"
+                            dense={true}
+                            style={[styles.input, styles.halfInput]}
+                            disabled={!!event}
+                        />
+                        <DatePickerModal
+                            locale="en"
+                            visible={showEndDatePicker}
+                            mode="single"
+                            onDismiss={() => setShowEndDatePicker(false)}
+                            date={endDate}
+                            onConfirm={(params) => {
+                                setEndDate(params.date);
+                                setShowEndDatePicker(false);
+                                analytics().logEvent('select_end_date', {
+                                    page: 'appointment',
+                                    element_type: 'date_picker',
+                                    event_type: 'on_select',
+                                    end_date: params?.date?.toString(),
+                                });
+                            }}
+                        />
+                        <TextInput
+                            label="End Time"
+                            value={formatTime(endTime.hours, endTime.minutes)}
+                            onFocus={() => setShowEndTimePicker(true)}
+                            mode="outlined"
+                            dense={true}
+                            style={[styles.input, styles.halfInput]}
+                            disabled={!!event}
+                        />
+                        <TimePickerModal
+                            locale="en"
+                            visible={showEndTimePicker}
+                            onDismiss={() => setShowEndTimePicker(false)}
+                            hours={endTime.hours}
+                            minutes={endTime.minutes}
+                            onConfirm={(params) => {
+                                setEndTime({ hours: params.hours, minutes: params.minutes });
+                                setShowEndTimePicker(false);
+                                analytics().logEvent('select_end_time', {
+                                    page: 'appointment',
+                                    element_type: 'time_picker',
+                                    event_type: 'on_select',
+                                    end_time: `${params.hours}:${params.minutes}`,
+                                });
+                            }}
+                        />
+
+                    </View>
+                    <Divider style={styles.divider} />
+                    {loading || creatingAppointment ? (
+                        <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
+                    ) : (
+                        <View style={styles.buttonsContainer}>
+                            {!currentAppointmentId && !isMeetingStarted && (
+                                <>
                                     <Button
                                         mode="contained"
-                                        onPress={handleJoinMeetingWrapper}
+                                        onPress={() => {
+                                            handleCreateMeeting();
+                                            analytics().logEvent('start_appointment_now', {
+                                                page: 'appointment',
+                                                element_type: 'button',
+                                                event_type: 'on_click',
+                                            });
+                                        }}
                                         style={[styles.createMeetingButton, styles.centeredButton]}
                                         icon="calendar"
                                         contentStyle={styles.buttonContent}
                                         labelStyle={styles.buttonLabel}
                                     >
-                                        Join Appointment
+                                        Start Appointment Now
                                     </Button>
-                                )}
-                            </>
-                        )}
-                    </View>
-                </TouchableWithoutFeedback>
-            </BottomSheet>
-        </TouchableWithoutFeedback>
-    );    
+                                    <Button
+                                        mode="outlined"
+                                        onPress={() => {
+                                            handleCreateMeeting(false);
+                                            analytics().logEvent('schedule_appointment', {
+                                                page: 'appointment',
+                                                element_type: 'button',
+                                                event_type: 'on_click',
+                                            });
+                                        }}
+                                        style={[styles.scheduleButton, styles.centeredButton]}
+                                        icon="calendar-clock"
+                                        contentStyle={styles.buttonContent}
+                                        labelStyle={styles.buttonLabel}
+                                    >
+                                        Schedule for Later
+                                    </Button>
+                                </>
+                            )}
+                            {!loading && !creatingAppointment && currentAppointmentId && !isMeetingStarted && !showMeetingControls && (
+                                <Button
+                                    mode="contained"
+                                    onPress={handleJoinMeetingWrapper}
+                                    style={[styles.createMeetingButton, styles.centeredButton]}
+                                    icon="calendar"
+                                    contentStyle={styles.buttonContent}
+                                    labelStyle={styles.buttonLabel}
+                                >
+                                    Join Appointment
+                                </Button>
+                            )}
+                        </View>
+                    )}
+                </View>
+            </TouchableWithoutFeedback>
+        </BottomSheet>
+    </TouchableWithoutFeedback>
+);
 };
 
 const styles = StyleSheet.create({
+    buttonsContainer: {
+        position: 'absolute',
+        bottom: 150,
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     image: {
         width: 150,
         height: 150,
@@ -511,7 +522,7 @@ const styles = StyleSheet.create({
     bottomSheetTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        marginBottom: 20,
+        marginBottom: 0,
         textAlign: 'center',
         width: '100%', // Ensure the text takes full width
         backgroundColor: 'white', // Add background color
@@ -529,7 +540,7 @@ const styles = StyleSheet.create({
     input: {
         marginVertical: 10,
         width: '90%',
-        backgroundColor: 'white', // Add background color
+        backgroundColor: '#E8EAF6', // Add background color
     },
     row: {
         flexDirection: 'row',
@@ -540,7 +551,7 @@ const styles = StyleSheet.create({
     },
     halfInput: {
         width: '48%',
-        backgroundColor: 'white', // Add background color
+        backgroundColor: '#E8EAF6', // Add background color
     },
     createMeetingButton: {
         width: '80%',
@@ -625,6 +636,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginBottom: 20,
         paddingHorizontal: 0,
+    },
+    divider: {
+        height: 1, // Thickness of the divider
+        backgroundColor: '#D3D3D3', // Light grey color
+        marginVertical: 10, // Spacing around the divider
+        width: '100%', // Ensure the divider takes full width
     },
 });
 

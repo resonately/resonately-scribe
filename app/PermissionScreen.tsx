@@ -107,9 +107,9 @@ const PermissionScreen: React.FC<PermissionScreenProps> = ({ updatePermissionsGr
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Title style={[styles.title, { color: theme.colors.primary }]}>Welcome to Resonately</Title>
+      <Title style={[styles.title, { color: theme.colors.primary }]}>We need a few permissions</Title>
       <Text style={[styles.description, { color: theme.colors.onBackground }]}>
-        To get started, please grant the following permissions required to run the app.
+        To get started, please grant the following permissions required to run the app
       </Text>
 
       <View style={styles.permissionContainer}>
@@ -117,7 +117,7 @@ const PermissionScreen: React.FC<PermissionScreenProps> = ({ updatePermissionsGr
         <View style={styles.permissionDetails}>
           <Text style={[styles.permissionLabel, { color: theme.colors.onBackground }]}>Camera</Text>
           <Text style={[styles.permissionExplanation, { color: theme.colors.onBackground }]}>
-            To enable QR Scans.
+            To scan QR codes
           </Text>
         </View>
         <Switch value={cameraPermission} onValueChange={requestCameraPermission} color={theme.colors.primary} />
@@ -128,7 +128,7 @@ const PermissionScreen: React.FC<PermissionScreenProps> = ({ updatePermissionsGr
         <View style={styles.permissionDetails}>
           <Text style={[styles.permissionLabel, { color: theme.colors.onBackground }]}>Microphone</Text>
           <Text style={[styles.permissionExplanation, { color: theme.colors.onBackground }]}>
-            To enable appointment transcriptions.
+            To transcribe appointments
           </Text>
         </View>
         <Switch value={microphonePermission} onValueChange={requestMicrophonePermission} color={theme.colors.primary} />
@@ -139,7 +139,7 @@ const PermissionScreen: React.FC<PermissionScreenProps> = ({ updatePermissionsGr
         <View style={styles.permissionDetails}>
           <Text style={[styles.permissionLabel, { color: theme.colors.onBackground }]}>Notifications</Text>
           <Text style={[styles.permissionExplanation, { color: theme.colors.onBackground }]}>
-            To send important updates and reminders.
+            To send important reminders
           </Text>
         </View>
         <Switch value={notificationsPermission} onValueChange={requestNotificationsPermission} color={theme.colors.primary} />
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
   title: {
     textAlign: 'center',
     marginBottom: 50,
-    fontSize: 28,
+    fontSize: 25,
     fontWeight: 'bold',
   },
   description: {
