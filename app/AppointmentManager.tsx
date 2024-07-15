@@ -6,6 +6,7 @@ import uuid from 'react-native-uuid';
 import Constants from 'expo-constants';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
+import { RecordingStatus } from 'expo-av/build/Audio';
 import {
     getRecordingUri,
     storeRecordingLocally,
@@ -106,6 +107,20 @@ class AppointmentManager {
         }
     }
 
+    private async handleRecordingStatusUpdate (status: Audio.RecordingStatus) {
+        if (status.isRecording) {
+          console.log('Recording is ongoing...');
+        } else if (status.isDoneRecording) {
+          console.log('Recording is done');
+        } else if (status.mediaServicesDidReset) {
+          console.log('Media services reset, possibly due to microphone access loss');
+          // Handle the microphone access loss here, e.g., stop recording
+          if (this.recordingRef) {
+            this.stopRecording();
+          }
+        }
+    };
+
     private async setAudioMode() {
         console.log('Setting audio mode...');
         await Audio.setAudioModeAsync({
@@ -122,7 +137,8 @@ class AppointmentManager {
     private async startAudioRecording() {
         console.log('Starting recording...');
         const { recording } = await Audio.Recording.createAsync(
-            Audio.RecordingOptionsPresets.HIGH_QUALITY
+            Audio.RecordingOptionsPresets.HIGH_QUALITY,
+            this.handleRecordingStatusUpdate
         );
         this.chunkStartTimeRef = new Date(); // Set the start time for the chunk
         return recording;
