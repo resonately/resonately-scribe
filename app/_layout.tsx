@@ -104,7 +104,7 @@ const RootLayoutComponent = () => {
               </ProtectedRoute>
             )}
           </Stack.Screen>
-          <Stack.Screen name="NewAppointmentScreen" options={{ headerShown: false }}>
+          <Stack.Screen name="NewAppointmentScreen" options={{ headerShown: true, headerBackTitle: 'Go back', title: '' }}>
             {props => (
               <ProtectedRoute>
                 <NewAppointment {...props} />
