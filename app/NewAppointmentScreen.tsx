@@ -396,6 +396,7 @@ const NewAppointment: React.FC<Props> = ({ navigation }) => {
                                                 element_type: 'button',
                                                 event_type: 'on_click',
                                             });
+                                            navigation.navigate("DrawerNavigator");
                                         }}
                                         style={[styles.scheduleButton, styles.centeredButton]}
                                         icon="calendar-clock"
@@ -459,6 +460,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         backgroundColor: 'white', // Add background color
         paddingHorizontal: 10, // Add padding to avoid cutting off
+        paddingTop: 20,
         flexWrap: 'wrap', // Ensure text wraps if too long
     },
     header: {

@@ -21,9 +21,10 @@ export interface Appointment {
 interface CalendarAppointmentsProps {
   setSelectedEvent: (event: Appointment | null) => void;
   setRefreshAppointments: (refreshFunc: () => void) => void;
+  handleNewAppointment: () => void;
 }
 
-const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelectedEvent, setRefreshAppointments }) => {
+const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelectedEvent, setRefreshAppointments, handleNewAppointment }) => {
   const theme = useTheme();
   const { tenantName } = useAuth().tenantDetails;
   const [events, setEvents] = useState<any>([{}]);
@@ -200,6 +201,7 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
       event_start: event.start,
       event_end: event.end,
     });
+    handleNewAppointment();
   };
 
   const renderEvent = (event: Appointment) => (

@@ -453,7 +453,7 @@ class AppointmentManager {
     private async processChunks() {
         console.log('processChunks');
         for (const recording of this.recordingsRef) {
-            console.log("found recording.... ->", recording);
+            console.log("found recording.... ->");
             let uploadSuccessful = false;
             if (recording.status !== 'Completed') {
                 // Sort chunks by position in ascending order

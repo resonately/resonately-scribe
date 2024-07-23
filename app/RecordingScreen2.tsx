@@ -249,6 +249,17 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
     setAppState(nextAppState);
   };
 
+  const handleNewAppointment = () => {
+      setSelectedEvent(null);
+      navigation.navigate("NewAppointmentScreen", {
+        refreshAppointments: refreshAppointmentsRef.current,
+        setAppointmentId: updateAppointmentId,
+        isMeetingStarted: isRecording,
+        event: selectedEvent,
+      });
+      analytics().logEvent('open_new_appointment_screen');
+  }
+
 
   return (
     <View style={styles.container}>
@@ -262,6 +273,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
       <CalendarAppointments 
         setSelectedEvent={setSelectedEvent} 
         setRefreshAppointments={setRefreshAppointments}
+        handleNewAppointment={handleNewAppointment}
       />
       {!isRecording && (
         <FAB
@@ -275,16 +287,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
               borderColor: theme.colors.primary, // Use primary color for border
           }}
           icon={() => <MaterialIcons name="add-circle-outline" size={25} color="white" />}
-          onPress={() => {
-              setSelectedEvent(null);
-              navigation.navigate("NewAppointmentScreen", {
-                refreshAppointments: refreshAppointmentsRef.current,
-                setAppointmentId: updateAppointmentId,
-                isMeetingStarted: isRecording,
-                event: selectedEvent,
-              });
-              analytics().logEvent('open_new_appointment_screen');
-          }}
+          onPress={handleNewAppointment}
           color={"white"} // Change icon color conditionally
           label={"New Appointment"}
         />
