@@ -461,7 +461,6 @@ class AppointmentManager {
 
                 for (const chunk of recording.chunks) {
                     if (chunk.status === 'created') {
-                        console.log(chunk);
                         await this.saveUpdatedRecordingsState();
                         const uploadSuccess = await this.uploadChunk(chunk, recording, this.tenantName!);
                         if (!uploadSuccess) {
@@ -509,7 +508,7 @@ class AppointmentManager {
         try {
             await this.processChunks();
         } catch (err) {
-            console.log('Error processing chunks');
+            console.error('Error processing chunks', err);
             // Log the event for chunk processing failure
             analytics().logEvent('process_chunks_failed', {
                 component: 'AppointmentManager',

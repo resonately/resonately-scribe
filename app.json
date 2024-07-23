@@ -54,6 +54,13 @@
             "useFrameworks": "static"
           }
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "resonately",
+          "project": "resonately-pro"
+        }
       ]
     ],
     "experiments": {

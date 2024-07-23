@@ -19,6 +19,7 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NewAppointment from './NewAppointmentScreen';
 import { Appointment } from './CalendarAppointments';
+import * as Sentry from '@sentry/react-native';
 
 export type RootStackParamList = {
   PermissionScreen: undefined;
@@ -30,6 +31,17 @@ export type RootStackParamList = {
   MeetingControlsScreen: { isMuted?: boolean; isPaused?: boolean; appointment?: any, collapseSheet?: () => void; } | undefined;
   WelcomeScreen: undefined;
   NewAppointmentScreen: {refreshAppointments: () => void, setAppointmentId: (id: string) => void, isMeetingStarted: boolean, event: Appointment | null} | undefined;
+};
+
+
+
+// Override console.error to capture logs in Sentry
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  // Send error to Sentry
+  Sentry.captureMessage(args.join(' '), Sentry.getCurrentScope().setLevel("error"));
+  // Call original console.error
+  originalConsoleError.apply(console, args);
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -118,6 +130,16 @@ const RootLayoutComponent = () => {
 };
 
 const RootLayout = () => {
+
+  useEffect(() => {
+    Sentry.init({
+      dsn: 'https://fd7b5f0482d5a5fee27dcfd27bd8bbc5@o4507652053008384.ingest.us.sentry.io/4507652056940544',
+      debug: false, // If `true`, Sentry will try to print out useful debugging information if something goes wrong with sending the event. Set it to `false` in production
+      // tracesSampleRate: 1.0,
+      // integrations: [SentryBrowser.captureConsoleIntegration()]
+    });
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <PaperProvider theme={theme}>

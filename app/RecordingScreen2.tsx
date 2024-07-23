@@ -250,6 +250,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   };
 
   const handleNewAppointment = () => {
+    // throw new Error("Function not implemented two.");
       setSelectedEvent(null);
       navigation.navigate("NewAppointmentScreen", {
         refreshAppointments: refreshAppointmentsRef.current,
