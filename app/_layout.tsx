@@ -17,6 +17,14 @@ import { Camera } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://fd7b5f0482d5a5fee27dcfd27bd8bbc5@o4507652053008384.ingest.us.sentry.io/4507652056940544',
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // enableSpotlight: __DEV__,
+});
 
 export type RootStackParamList = {
   PermissionScreen: undefined;
