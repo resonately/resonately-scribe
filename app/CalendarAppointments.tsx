@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert, StyleSheet, ScrollView, RefreshControl, View, Text } from 'react-native';
-import { CalendarProvider, ExpandableCalendar, TimelineList } from 'react-native-calendars';
+import { AgendaList, CalendarProvider, ExpandableCalendar, TimelineList } from 'react-native-calendars';
 import { useTheme, ActivityIndicator } from 'react-native-paper';
 import NetInfo from '@react-native-community/netinfo';
 import { fetchAppointments } from './RecordUtils';
@@ -81,7 +81,7 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
     const selectedDate = new Date(date);
     const startDate = new Date(selectedDate);
     const endDate = new Date(selectedDate);
-    const fetchWindow = 30;
+    const fetchWindow = 7;
     startDate.setDate(selectedDate.getDate() - fetchWindow);
     endDate.setDate(selectedDate.getDate() + fetchWindow);
 
@@ -127,7 +127,7 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
 
     const fetchAndUpdate = async () => {
       await loadAppointments();
-      timeoutId = setTimeout(fetchAndUpdate, 5000); // Refresh data every 5 seconds
+      timeoutId = setTimeout(fetchAndUpdate, 10000); // Refresh data every 5 seconds
     };
 
     fetchAndUpdate();

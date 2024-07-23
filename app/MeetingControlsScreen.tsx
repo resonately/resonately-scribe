@@ -28,8 +28,6 @@ type MeetingControlsScreenRouteProp = RouteProp<RootStackParamList, 'MeetingCont
 const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const route = useRoute<MeetingControlsScreenRouteProp>();
     const { isMuted = false, isPaused = false, appointment, collapseSheet } = route.params || {};
-    console.log(`Meeting Controls Screen`);
-    console.log(appointment);
     const theme = useTheme();
     const [muted, setMuted] = useState(isMuted);
     const [paused, setPaused] = useState(isPaused);
@@ -38,33 +36,55 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
 
     useEffect(() => {
         const initializeRecording = async () => {
-            if (appointment) {
-                await AppointmentManager.startRecording(appointment.id);
+            try {
+                if (appointment) {
+                    AppointmentManager.uploadChunksPeriodically();
+                    await AppointmentManager.startRecording(appointment.id);
+                }
+            } catch (error) {
+                console.error('Error initializing recording:', error);
             }
         };
+    
+        if (appointment) {
+            initializeRecording();
+        }
+    
+        return () => {
+        };
+    }, [appointment]);
+    
 
+    useEffect(() => {
         const handleAppStateChange = (nextAppState: AppStateStatus) => {
             if (nextAppState === 'active') {
                 console.log('App has come to the foreground!');
                 analytics().logEvent('app_state_change', { state: 'foreground' });
+    
+                // Check if the current screen is not already MeetingControlsScreen
+                const currentRoute = navigation.getState().routes[navigation.getState().index];
+                if (appointment && currentRoute.name !== 'MeetingControlsScreen') {
+                    navigation.navigate('MeetingControlsScreen', {
+                        appointment,
+                        isMuted: muted,
+                        isPaused: paused,
+                        collapseSheet
+                    });
+                }
             } else if (nextAppState.match(/inactive|background/)) {
                 console.log('App is in the background');
                 analytics().logEvent('app_state_change', { state: 'background' });
             }
         };
-
-        initializeRecording();
-        AppointmentManager.uploadChunksPeriodically();
-
+    
         const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-
+    
         return () => {
-            AppointmentManager.stopRecording();
             if (appStateSubscription) {
                 appStateSubscription.remove();
             }
         };
-    }, [appointment]);
+    }, [appointment, muted, paused, collapseSheet, navigation]);    
 
     const handleToggle = (setter: React.Dispatch<React.SetStateAction<boolean>>, value: boolean) => {
         setter(!value);

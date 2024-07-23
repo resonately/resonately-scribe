@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItem, DrawerItemList } from '@react-navigation/drawer';
 import { useTheme } from 'react-native-paper';
 import { View, StyleSheet } from 'react-native';
@@ -60,7 +60,7 @@ const CustomDrawerContent = (props: any) => {
 
 const DrawerNavigator = () => {
   const theme = useTheme();
-
+  const recordingScreenRef = useRef(null);
 
   return (
     <Drawer.Navigator
