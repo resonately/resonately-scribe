@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -17,6 +17,8 @@ import { Camera } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NewAppointment from './NewAppointmentScreen';
+import { Appointment } from './CalendarAppointments';
 
 export type RootStackParamList = {
   PermissionScreen: undefined;
@@ -27,6 +29,7 @@ export type RootStackParamList = {
   RecordingScreen: undefined;
   MeetingControlsScreen: { isMuted?: boolean; isPaused?: boolean; appointment?: any, collapseSheet?: () => void; } | undefined;
   WelcomeScreen: undefined;
+  NewAppointmentScreen: {refreshAppointments: () => void, setAppointmentId: (id: string) => void, isMeetingStarted: boolean, event: Appointment | null} | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -98,6 +101,13 @@ const RootLayoutComponent = () => {
             {props => (
               <ProtectedRoute>
                 <MeetingControlsScreen />
+              </ProtectedRoute>
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="NewAppointmentScreen" options={{ headerShown: false }}>
+            {props => (
+              <ProtectedRoute>
+                <NewAppointment {...props} />
               </ProtectedRoute>
             )}
           </Stack.Screen>

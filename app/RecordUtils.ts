@@ -75,7 +75,6 @@ export const deleteAppointment = async (appointmentId: number, tenantName: strin
 export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantName: string): Promise<boolean> => {
   const { position, startTime, endTime, uri } = chunk;
 
-  console.log('Recording ID:', recordingId);
   console.log('Chunk Start Time:', startTime);
   console.log('Chunk End Time:', endTime);
   console.log('Chunk URI:', uri);
@@ -155,7 +154,6 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
 export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, tenantName: string): Promise<boolean> => {
   const { position, startTime, endTime, uri } = chunk;
 
-  console.log('Recording ID:', JSON.stringify(recording));
   console.log('Chunk Start Time:', startTime);
   console.log('Chunk End Time:', endTime);
   console.log('Chunk URI:', uri);
@@ -247,7 +245,6 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
   console.log(tenantName);
   console.log(startDate);
   console.log(endDate);
-  console.log(API_BASE_URL);
 
   if (!sessionCookie) {
     console.error('Session cookie not found.');
@@ -260,8 +257,6 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
     'Cookie': sessionCookie,
   };
 
-  console.log(headers);
-
   try {
     const response = await fetch(`${API_BASE_URL}/server/v1/appointments?startDate=${startDate}&endDate=${endDate}`, {
       method: 'GET',
@@ -271,7 +266,6 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
     if (response.ok) {
       const data = await response.json();
       console.log('Appointments fetched successfully.');
-      console.log(API_BASE_URL);
       return data.appointments;
     } else {
       console.error('Failed to fetch appointments. Status:', response.status);

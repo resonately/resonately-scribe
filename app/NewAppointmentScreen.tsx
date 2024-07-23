@@ -1,0 +1,580 @@
+import { StyleSheet, Text, View, ActivityIndicator, Alert, SafeAreaView } from "react-native";
+import { TextInput, Button, List, useTheme, Divider } from 'react-native-paper';
+import Constants from 'expo-constants';
+import analytics from '@react-native-firebase/analytics';
+import { DatePickerModal, TimePickerModal } from 'react-native-paper-dates';
+import { format } from 'date-fns';
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "./_layout";
+import { useEffect, useRef, useState } from "react";
+import { createAppointment } from "./RecordUtils";
+import { useAuth } from "./AuthContext";
+import { RouteProp, useRoute } from "@react-navigation/native";
+import { Appointment } from "./CalendarAppointments";
+import { StackNavigationProp } from "@react-navigation/stack";
+
+
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
+
+
+// Update CreateMeetingSheetProps to include the navigation prop type
+interface CreateMeetingSheetProps {
+    refreshAppointments: () => void;
+    event?: Appointment | null;
+    isMeetingStarted: boolean;
+    setAppointmentId: (id: string) => void;
+    navigation: NativeStackNavigationProp<RootStackParamList>;
+}
+
+type NewAppointmentScreenRouteProp = RouteProp<RootStackParamList, 'NewAppointmentScreen'>;
+type NewAppointmentScreenNavigationProp = StackNavigationProp<RootStackParamList, 'NewAppointmentScreen'>;
+
+type Props = {
+    route: NewAppointmentScreenRouteProp;
+    navigation: NewAppointmentScreenNavigationProp;
+  };
+
+
+const NewAppointment: React.FC<Props> = ({ navigation }) => {
+
+    const theme = useTheme();
+    const route = useRoute<NewAppointmentScreenRouteProp>();
+    const { refreshAppointments, isMeetingStarted, setAppointmentId, event  } = route.params || {};
+    const { tenantName } = useAuth().tenantDetails;
+    const [appointmentType, setAppointmentType] = useState('');
+    const [suggestedTypes, setSuggestedTypes] = useState<string[]>([]);
+    const [patientName, setPatientName] = useState('');
+    const [providerName, setProviderName] = useState('');
+    const [startDate, setStartDate] = useState<Date | undefined>(new Date());
+    const [startTime, setStartTime] = useState<{ hours: number, minutes: number }>({ hours: new Date().getHours(), minutes: new Date().getMinutes() });
+    const [endDate, setEndDate] = useState<Date | undefined>(new Date(Date.now() + 60 * 60 * 1000));
+    const [endTime, setEndTime] = useState<{ hours: number, minutes: number }>({ hours: new Date(Date.now() + 60 * 60 * 1000).getHours(), minutes: new Date(Date.now() + 60 * 60 * 1000).getMinutes() });
+    const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+    const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+    const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+    const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [currentAppointmentId, setCurrentAppointmentId] = useState<string | null>(null);
+    const appointmentIdRef = useRef<string | null>(null);
+    const [creatingAppointment, setCreatingAppointment] = useState(false);
+    const [showMeetingControls, setShowMeetingControls] = useState(false);
+
+    useEffect(() => {
+        if (event) {
+            setAppointmentType(event.appointment_type || '');
+            setPatientName(event.patient_name || '');
+            const startDateTime = new Date(event.start);
+            const endDateTime = new Date(event.end);
+            setStartDate(startDateTime);
+            setEndDate(endDateTime);
+            setStartTime({ hours: startDateTime.getHours(), minutes: startDateTime.getMinutes() });
+            setEndTime({ hours: endDateTime.getHours(), minutes: endDateTime.getMinutes() });
+            setCurrentAppointmentId(event.id || null);
+            appointmentIdRef.current = event.id || null;
+        } else {
+            setAppointmentType('');
+            setPatientName('');
+            setStartDate(new Date());
+            setEndDate(new Date(Date.now() + 60 * 60 * 1000));
+            setStartTime({ hours: new Date().getHours(), minutes: new Date().getMinutes() });
+            setEndTime({ hours: new Date(Date.now() + 60 * 60 * 1000).getHours(), minutes: new Date(Date.now() + 60 * 60 * 1000).getMinutes() });
+            setCurrentAppointmentId(null);
+        }
+    }, [event]);
+
+    const handleJoinMeetingWrapper = () => {
+        if (appointmentIdRef.current) {
+            navigation.navigate('MeetingControlsScreen', {
+                appointment: {
+                    id: appointmentIdRef.current,
+                    title: event?.title || 'New Appointment',
+                    startTime: '2024-07-07T10:00:00Z',
+                    endTime: '2024-07-07T11:00:00Z'
+                }
+            });
+            analytics().logEvent('join_meeting', {
+                page: 'appointment',
+                element_type: 'button',
+                event_type: 'on_click',
+            });
+        } else {
+            Alert.alert('Appointment ID missing.');
+            analytics().logEvent('join_meeting_failure', {
+                page: 'appointment',
+                element_type: 'alert',
+                event_type: 'on_display',
+            });
+        }
+    };
+
+    const handleCreateMeeting = async (startNow: boolean = true) => {
+        analytics().logEvent('start_appointment_now', {
+            page: 'appointment',
+            element_type: 'button',
+            event_type: 'on_click',
+        });
+        if (!startDate || !endDate) {
+            Alert.alert('Error', 'Please select date and time for the appointment.');
+            analytics().logEvent('missing_date_time', {
+                page: 'appointment',
+                element_type: 'alert',
+                event_type: 'on_display',
+            });
+            return;
+        }
+
+        const startDateTime = new Date(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            startDate.getDate(),
+            startTime.hours,
+            startTime.minutes
+        );
+
+        const endDateTime = new Date(
+            endDate.getFullYear(),
+            endDate.getMonth(),
+            endDate.getDate(),
+            endTime.hours,
+            endTime.minutes
+        );
+
+        setLoading(true);
+        setCreatingAppointment(true);
+
+        try {
+            let appointmentTitle = event?.title || '';
+            let appointmentId = '';
+
+            const response = await createAppointment(appointmentType, patientName, appointmentTitle, startDateTime.toUTCString(), endDateTime.toUTCString(), '', tenantName);
+            if (response.success) {
+                if (response.appointmentId) {
+                    appointmentId = response.appointmentId;
+                }
+                setAppointmentId && setAppointmentId(appointmentId);
+                setCurrentAppointmentId(appointmentId);
+                appointmentIdRef.current = appointmentId;
+                refreshAppointments && refreshAppointments();
+
+                // Set meeting controls before joining the meeting
+                if (startNow) {
+                    handleJoinMeetingWrapper();
+                }
+            } else {
+                throw new Error('Failed to create appointment');
+            }
+
+        } catch (error) {
+            Alert.alert('Error', 'Failed to create appointment');
+            analytics().logEvent('create_appointment_error', {
+                page: 'appointment',
+                element_type: 'alert',
+                event_type: 'on_display',
+            });
+        } finally {
+            setLoading(false);
+            setCreatingAppointment(false);
+            if (!startNow) {
+                setCurrentAppointmentId(null);
+                analytics().logEvent('appointment_scheduled', {
+                    page: 'appointment',
+                    element_type: 'button',
+                    event_type: 'on_click',
+                });
+            }
+        }
+    };
+
+    const fetchSuggestedTypes = async (query: string) => {
+        const response = await fetch(`${API_BASE_URL}/appointment-types?q=${query}`);
+        const data = await response.json();
+        setSuggestedTypes(data);
+    };
+
+    const formatDate = (date: Date) => {
+        return format(date, 'MMMM dd yyyy');
+    };
+
+    const formatTime = (hours: number, minutes: number) => {
+        return format(new Date(0, 0, 0, hours, minutes), 'hh:mm a');
+    };
+
+
+    return (
+        <SafeAreaView style={{ flex: 1 }}>
+            <View style={[styles.bottomSheet, { backgroundColor: theme.colors.background }]}>
+                <View style={styles.header}>
+                    <Text style={styles.bottomSheetTitle}>{event ? event.title : 'New Appointment'}</Text>
+                </View>
+                <TextInput
+                    label="Select Appointment Type (Optional)"
+                    value={appointmentType}
+                    onChangeText={(text) => {
+                        setAppointmentType(text);
+                        fetchSuggestedTypes(text);
+                    }}
+                    mode="outlined"
+                    style={styles.input}
+                    dense={true}
+                    onFocus={() => fetchSuggestedTypes('')}
+                    disabled={!!event}
+                    right={<TextInput.Icon icon="chevron-down" />}
+                />
+                {suggestedTypes.length > 0 && (
+                    <List.Section>
+                        {suggestedTypes.map((type) => (
+                            <List.Item
+                                key={type}
+                                title={type}
+                                onPress={() => {
+                                    setAppointmentType(type);
+                                    setSuggestedTypes([]);
+                                    analytics().logEvent('select_appointment_type', {
+                                        page: 'appointment',
+                                        element_type: 'list_item',
+                                        event_type: 'on_select',
+                                        appointment_type: type,
+                                    });
+                                }}
+                            />
+                        ))}
+                    </List.Section>
+                )}
+                <TextInput
+                    label="Add Patient (Optional)"
+                    value={patientName}
+                    onChangeText={setPatientName}
+                    mode="outlined"
+                    style={styles.input}
+                    disabled={!!event}
+                    dense={true}
+                    right={<TextInput.Icon icon="chevron-down" />}
+                />
+
+                <Divider style={styles.divider} />
+
+                <View style={styles.row}>
+                    <TextInput
+                        label="Start Date"
+                        value={startDate ? formatDate(startDate) : ''}
+                        onFocus={() => setShowStartDatePicker(true)}
+                        mode="outlined"
+                        dense={true}
+                        style={[styles.input, styles.halfInput]}
+                        disabled={!!event}
+                    />
+                    <DatePickerModal
+                        locale="en"
+                        visible={showStartDatePicker}
+                        mode="single"
+                        onDismiss={() => setShowStartDatePicker(false)}
+                        date={startDate}
+                        onConfirm={(params) => {
+                            setStartDate(params.date);
+                            setShowStartDatePicker(false);
+                            analytics().logEvent('select_start_date', {
+                                page: 'appointment',
+                                element_type: 'date_picker',
+                                event_type: 'on_select',
+                                start_date: params?.date?.toString(),
+                            });
+                        }}
+                    />
+                    <TextInput
+                        label="Start Time"
+                        value={formatTime(startTime.hours, startTime.minutes)}
+                        onFocus={() => setShowStartTimePicker(true)}
+                        mode="outlined"
+                        dense={true}
+                        style={[styles.input, styles.halfInput]}
+                        disabled={!!event}
+                    />
+                    <TimePickerModal
+                        locale="en"
+                        visible={showStartTimePicker}
+                        onDismiss={() => setShowStartTimePicker(false)}
+                        hours={startTime.hours}
+                        minutes={startTime.minutes}
+                        onConfirm={(params) => {
+                            setStartTime({ hours: params.hours, minutes: params.minutes });
+                            setShowStartTimePicker(false);
+                            analytics().logEvent('select_start_time', {
+                                page: 'appointment',
+                                element_type: 'time_picker',
+                                event_type: 'on_select',
+                                start_time: `${params.hours}:${params.minutes}`,
+                            });
+                        }}
+                    />
+                </View>
+                <View style={styles.row}>
+                    <TextInput
+                        label="End Date"
+                        value={endDate ? formatDate(endDate) : ''}
+                        onFocus={() => setShowEndDatePicker(true)}
+                        mode="outlined"
+                        dense={true}
+                        style={[styles.input, styles.halfInput]}
+                        disabled={!!event}
+                    />
+                    <DatePickerModal
+                        locale="en"
+                        visible={showEndDatePicker}
+                        mode="single"
+                        onDismiss={() => setShowEndDatePicker(false)}
+                        date={endDate}
+                        onConfirm={(params) => {
+                            setEndDate(params.date);
+                            setShowEndDatePicker(false);
+                            analytics().logEvent('select_end_date', {
+                                page: 'appointment',
+                                element_type: 'date_picker',
+                                event_type: 'on_select',
+                                end_date: params?.date?.toString(),
+                            });
+                        }}
+                    />
+                    <TextInput
+                        label="End Time"
+                        value={formatTime(endTime.hours, endTime.minutes)}
+                        onFocus={() => setShowEndTimePicker(true)}
+                        mode="outlined"
+                        dense={true}
+                        style={[styles.input, styles.halfInput]}
+                        disabled={!!event}
+                    />
+                    <TimePickerModal
+                        locale="en"
+                        visible={showEndTimePicker}
+                        onDismiss={() => setShowEndTimePicker(false)}
+                        hours={endTime.hours}
+                        minutes={endTime.minutes}
+                        onConfirm={(params) => {
+                            setEndTime({ hours: params.hours, minutes: params.minutes });
+                            setShowEndTimePicker(false);
+                            analytics().logEvent('select_end_time', {
+                                page: 'appointment',
+                                element_type: 'time_picker',
+                                event_type: 'on_select',
+                                end_time: `${params.hours}:${params.minutes}`,
+                            });
+                        }}
+                    />
+
+                </View>
+                <Divider style={styles.divider} />
+                        
+                {loading || creatingAppointment ? (
+                    <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
+                ) : (
+                        <View style={styles.buttonsContainer}>
+                            {!currentAppointmentId && !isMeetingStarted && (
+                                <>
+                                    <Button
+                                        mode="contained"
+                                        onPress={() => {
+                                            handleCreateMeeting();
+                                            analytics().logEvent('start_appointment_now', {
+                                                page: 'appointment',
+                                                element_type: 'button',
+                                                event_type: 'on_click',
+                                            });
+                                        }}
+                                        style={[styles.createMeetingButton, styles.centeredButton]}
+                                        icon="calendar"
+                                        contentStyle={styles.buttonContent}
+                                        labelStyle={styles.buttonLabel}
+                                    >
+                                        Start Appointment Now
+                                    </Button>
+                                    <Button
+                                        mode="outlined"
+                                        onPress={() => {
+                                            handleCreateMeeting(false);
+                                            analytics().logEvent('schedule_appointment', {
+                                                page: 'appointment',
+                                                element_type: 'button',
+                                                event_type: 'on_click',
+                                            });
+                                        }}
+                                        style={[styles.scheduleButton, styles.centeredButton]}
+                                        icon="calendar-clock"
+                                        contentStyle={styles.buttonContent}
+                                        labelStyle={styles.buttonLabel}
+                                    >
+                                        Schedule for Later
+                                    </Button>
+                                </>
+                            )}
+                            {!loading && !creatingAppointment && currentAppointmentId && !isMeetingStarted && !showMeetingControls && (
+                                <Button
+                                    mode="contained"
+                                    onPress={handleJoinMeetingWrapper}
+                                    style={[styles.createMeetingButton, styles.centeredButton]}
+                                    icon="calendar"
+                                    contentStyle={styles.buttonContent}
+                                    labelStyle={styles.buttonLabel}
+                                >
+                                    Join Appointment
+                                </Button>
+                            )}
+                        </View>
+                    )}
+            </View>
+        </SafeAreaView>
+    )
+};
+
+const styles = StyleSheet.create({
+    buttonsContainer: {
+        position: 'absolute',
+        bottom: 150,
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    image: {
+        width: 150,
+        height: 150,
+        marginBottom: 20,
+    },
+    // ... other styles
+    scheduleButton: {
+        width: '80%',
+        height: 60,
+        alignSelf: 'center',
+        marginVertical: 10,
+    },
+    bottomSheet: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        paddingBottom: 6,
+        backgroundColor: 'white', // Add background color
+    },
+    bottomSheetTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 0,
+        textAlign: 'center',
+        backgroundColor: 'white', // Add background color
+        paddingHorizontal: 10, // Add padding to avoid cutting off
+        flexWrap: 'wrap', // Ensure text wraps if too long
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'center', // Center the text
+        alignItems: 'center',
+        width: '100%',
+        paddingHorizontal: 16,
+        backgroundColor: 'white', // Add background color
+    },
+    input: {
+        marginVertical: 10,
+        width: '90%',
+        backgroundColor: '#E8EAF6', // Add background color
+    },
+    row: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '90%',
+        alignItems: 'center',
+        backgroundColor: 'white', // Add background color
+    },
+    halfInput: {
+        width: '48%',
+        backgroundColor: '#E8EAF6', // Add background color
+    },
+    createMeetingButton: {
+        width: '80%',
+        height: 60,
+        alignSelf: 'center',
+        marginVertical: 20,
+    },
+    centeredButton: {
+        alignSelf: 'center',
+    },
+    buttonContent: {
+        height: 60,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    buttonLabel: {
+        fontSize: 18,
+    },
+    joinMeetingButton: {
+        marginTop: 20,
+        marginBottom: 20,
+        width: '90%',
+        height: 60,
+        justifyContent: 'center',
+        alignSelf: 'center',
+        alignItems: 'center',
+        backgroundColor: 'white', // Add background color
+    },
+    joinMeetingButtonContent: {
+        height: 60,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'white', // Add background color
+    },
+    joinMeetingButtonLabel: {
+        fontSize: 18,
+        width: '100%',
+        textAlign: 'center',
+    },
+    loader: {
+        marginTop: 20,
+        backgroundColor: 'white', // Add background color
+    },
+    meetingControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        width: '90%',
+        marginTop: 20,
+        backgroundColor: 'white', // Add background color
+    },
+    muteButton: {
+        backgroundColor: 'white', // Add background color
+        borderColor: 'gray',
+        borderWidth: 1,
+        color: 'black',
+        borderRadius: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '20%',
+        marginVertical: 0,
+        marginBottom: 20,
+        paddingHorizontal: 0,
+    },
+    timerContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '50%',
+        marginBottom: 20,
+        paddingHorizontal: 0,
+        backgroundColor: 'white', // Add background color
+    },
+    fab: {
+        height: 56,
+        marginBottom: 50,
+        paddingHorizontal: 20,
+        backgroundColor: 'white', // Add background color
+    },
+    endVisitButton: {
+        width: '40%',
+        backgroundColor: 'white', // Add background color
+        justifyContent: 'center',
+        marginBottom: 20,
+        paddingHorizontal: 0,
+    },
+    divider: {
+        height: 1, // Thickness of the divider
+        backgroundColor: '#D3D3D3', // Light grey color
+        marginVertical: 10, // Spacing around the divider
+        width: '100%', // Ensure the divider takes full width
+    },
+});
+
+export default NewAppointment;

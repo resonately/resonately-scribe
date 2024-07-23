@@ -167,15 +167,19 @@ class AppointmentManager {
     }
 
     private async handleRecordingUri(recording: Audio.Recording | null) {
-        if (recording) {
-            const recordingUri = await getRecordingUri(recording);
-            if (recordingUri && this.recordingIdRef) {
-                return storeRecordingLocally(recordingUri, this.recordingIdRef);
+        try {
+            if (recording) {
+                const recordingUri = await getRecordingUri(recording);
+                if (recordingUri && this.recordingIdRef) {
+                    return storeRecordingLocally(recordingUri, this.recordingIdRef);
+                } else {
+                    throw new Error('Recording URI not found');
+                }
             } else {
-                throw new Error('Recording URI not found');
+                console.log('No recording found.');
             }
-        } else {
-            console.log('No recording found.');
+        } catch (err) {
+            console.error('Error handling recording URI:', err);
         }
     }
 
@@ -220,6 +224,7 @@ class AppointmentManager {
     }
 
     public async handleChunkCreation(isLastChunk: boolean = false) {
+        console.log('Handling chunk creation...');
         try {
             await this.stopAndUnloadRecording(this.recordingRef);
             const localFileUri = await this.handleRecordingUri(this.recordingRef);
@@ -257,6 +262,7 @@ class AppointmentManager {
 
     public async startRecording(appointmentId: string) {
         try {
+            console.log("Start recording....");
             await this.requestPermissions();
             const newRecordingId = uuid.v4().toString();
             this.updateRecordingId(newRecordingId); // Set the recordingId state
@@ -405,6 +411,7 @@ class AppointmentManager {
     }
 
     private async uploadChunk(chunk: Chunk, recording: Recording, tenantName: string) {
+        console.log("Inside upload chunk");
         const success = await uploadChunkToServer(chunk, recording, tenantName);
         if (success) {
             chunk.status = 'uploaded';
@@ -438,6 +445,7 @@ class AppointmentManager {
     }
 
     private async saveUpdatedRecordingsState() {
+        console.log("Inside save updated recordings state");
         await saveRecordings(this.recordingsRef);
         this.updateRecordingsState(this.recordingsRef);
     }
@@ -445,6 +453,7 @@ class AppointmentManager {
     private async processChunks() {
         console.log('processChunks');
         for (const recording of this.recordingsRef) {
+            console.log("found recording.... ->", recording);
             let uploadSuccessful = false;
             if (recording.status !== 'Completed') {
                 // Sort chunks by position in ascending order
@@ -494,6 +503,7 @@ class AppointmentManager {
     }
 
     private async loadAndProcessChunks() {
+        console.log("Inside upload chunks periodically, load and process chunks");
         const savedRecordings = await loadRecordings();
         this.updateRecordingsState(savedRecordings);
         try {

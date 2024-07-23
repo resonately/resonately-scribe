@@ -9,6 +9,7 @@ import CalendarEvent from './CalendarEvent';
 import analytics from '@react-native-firebase/analytics';
 
 export interface Appointment {
+  id?: string;
   start: string;
   end: string;
   title: string;
@@ -19,11 +20,10 @@ export interface Appointment {
 
 interface CalendarAppointmentsProps {
   setSelectedEvent: (event: Appointment | null) => void;
-  setIsSheetOpen: (isOpen: boolean) => void;
   setRefreshAppointments: (refreshFunc: () => void) => void;
 }
 
-const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelectedEvent, setIsSheetOpen, setRefreshAppointments }) => {
+const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelectedEvent, setRefreshAppointments }) => {
   const theme = useTheme();
   const { tenantName } = useAuth().tenantDetails;
   const [events, setEvents] = useState<any>([{}]);
@@ -195,7 +195,6 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
 
   const handleEventPress = (event: Appointment) => {
     setSelectedEvent(event);
-    setIsSheetOpen(true);
     analytics().logEvent('select_event', {
       event_title: event.title,
       event_start: event.start,
