@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "My Resonately",
+    "name": "Resonately Pro",
     "slug": "AIScribeApp",
     "version": "1.0.3",
     "orientation": "portrait",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "32",
+      "buildNumber": "34",
       "bundleIdentifier": "com.myhearingapp.AIScribeApp",
       "icon": "./assets/images/resonately-icon-1024.png",
       "googleServicesFile": "./GoogleService-Info.plist",
@@ -27,8 +27,8 @@
         "entitlements": {
           "aps-environment": "production"
         },
-        "CFBundleDisplayName": "My Resonately",
-        "CFBundleName": "My Resonately"
+        "CFBundleDisplayName": "Resonately Pro",
+        "CFBundleName": "Resonately Pro"
       }
     },
     "android": {
@@ -60,7 +60,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "API_BASE_URL": "https://api.rsn8ly.xyz",
+      "API_BASE_URL": "https://api.myhearing.app",
       "router": {
         "origin": false
       },

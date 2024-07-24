@@ -16,6 +16,7 @@ import {
     deleteRecordingsByAge,
 } from './RecordUtils';
 import { saveRecordings, loadRecordings } from './AsyncStorageUtils';
+import { start } from 'repl';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -230,12 +231,19 @@ class AppointmentManager {
     public async handleChunkCreation(isLastChunk: boolean = false) {
         try {
             console.log(">>>>> Inside handle chunk creation: isLastChunk", isLastChunk);
-            const status = await this.recordingRef?.getStatusAsync();
+            let status = await this.recordingRef?.getStatusAsync();
+
+            console.log(`Status: ${JSON.stringify(status)}`);
+            // if the recording was paused, but not stopped, resume it before stopping it.
+            if (status && !status.isRecording && status.canRecord) {
+                await this.resumeRecording();
+            }
+
+            status = await this.recordingRef?.getStatusAsync();
+
             if(status && status.isRecording) {
                 const unloadingStatus = await this.stopAndUnloadRecording(this.recordingRef);
                 const localFileUri = await this.handleRecordingUri(this.recordingRef);
-
-                
 
                 if (localFileUri) {
                     const chunk = this.createChunk(localFileUri, this.chunkStartTimeRef!, new Date(), isLastChunk);
@@ -322,8 +330,14 @@ class AppointmentManager {
     }
 
     public async pauseRecording() {
+        console.log(`>>>>>>>>>>>>> Inside pauseRecording();`);
+        const status = await this.recordingRef?.getStatusAsync();
+
+        // if the recording was paused, but not stopped, resume it before stopping it.
+        console.log(`Status: ${status}`);
         if (this.recordingRef) {
             try {
+                
                 await this.recordingRef.pauseAsync();
                 console.log('Recording paused');
 

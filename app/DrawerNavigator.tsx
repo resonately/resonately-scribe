@@ -81,11 +81,24 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="My Appointments"
         component={RecordingScreen}
-        options={{ drawerLabel: 'My Appointments', 
-        drawerIcon: ({ focused, color, size }) => (
+        options={({ navigation }) => ({
+          drawerLabel: 'My Appointments',
+          drawerIcon: ({ focused, color, size }) => (
             <MaterialCommunityIcons name="calendar" color={color} size={size} />
           ),
-        }}
+          headerRight: () => (
+            <MaterialCommunityIcons
+              name="refresh"
+              size={24}
+              color={useTheme().colors.primary}
+              onPress={() => {
+                // Add your refresh logic here
+                console.log('Refresh button pressed');
+              }}
+              style={{ marginRight: 20 }}
+            />
+          ),
+        })}
       />
     </Drawer.Navigator>
   );
