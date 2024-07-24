@@ -13,25 +13,39 @@ export const getRecordingUri = async (recording: Audio.Recording): Promise<strin
 };
 
 export const storeRecordingLocally = async (recordingUri: string, recordingId: string): Promise<string | null> => {
-  if (recordingId) {
+  try {
+    if (!recordingUri || !recordingId) {
+      throw new Error('Invalid recording URI or recording ID');
+    }
+
     const recordingDir = `${FileSystem.documentDirectory}recordings/rec_${recordingId}/`;
 
-  // Ensure the directory exists
-  await FileSystem.makeDirectoryAsync(recordingDir, { intermediates: true });
+    // Ensure the directory exists
+    console.log('Creating directory:', recordingDir);
+    await FileSystem.makeDirectoryAsync(recordingDir, { intermediates: true });
 
-  // Generate a unique filename using a timestamp
-  const uniqueTimestamp = new Date().getTime();
-  const localFileUri = `${recordingDir}${recordingId}_${uniqueTimestamp}.m4a`;
+    // Generate a unique filename using a timestamp
+    const uniqueTimestamp = new Date().getTime();
+    const localFileUri = `${recordingDir}${recordingId}_${uniqueTimestamp}.m4a`;
 
-  // Move the recording to the new location
-  await FileSystem.moveAsync({
-    from: recordingUri,
-    to: localFileUri,
-  });
+    // Check if the source file exists
+    const fileInfo = await FileSystem.getInfoAsync(recordingUri);
+    if (!fileInfo.exists) {
+      throw new Error(`Source file does not exist at URI: ${recordingUri}`);
+    }
 
-  return localFileUri;
+    // Move the recording to the new location
+    console.log(`Moving file from ${recordingUri} to ${localFileUri}`);
+    await FileSystem.moveAsync({
+      from: recordingUri,
+      to: localFileUri,
+    });
+
+    return localFileUri;
+  } catch (err: any) {
+    console.error('>>>> Error in store recording locally: ', err);
+    return null;
   }
-  return null;
 };
 
 export const deleteAppointment = async (appointmentId: number, tenantName: string): Promise<boolean> => {
@@ -243,11 +257,6 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string): Promise<any> => {
   const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
 
-  console.log('loadAppointments');
-  console.log(tenantName);
-  console.log(startDate);
-  console.log(endDate);
-  console.log(API_BASE_URL);
 
   if (!sessionCookie) {
     console.error('Session cookie not found.');
@@ -259,8 +268,6 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
     'Content-Type': 'application/json',
     'Cookie': sessionCookie,
   };
-
-  console.log(headers);
 
   try {
     const response = await fetch(`${API_BASE_URL}/server/v1/appointments?startDate=${startDate}&endDate=${endDate}`, {
@@ -359,8 +366,6 @@ export const deleteRecordingsByAge = async (recordings: RecordingInfo[], maxAgeI
   console.log(`deleteRecordingsByAge`);
   try {
     for (const recording of recordings) {
-      console.log(recording.ageInSeconds);
-      console.log(maxAgeInSeconds);
       if (recording.ageInSeconds > maxAgeInSeconds) {
         await FileSystem.deleteAsync(recording.filePath);
         console.log(`Deleted file: ${recording.filePath}`);
