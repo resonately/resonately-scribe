@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItem, DrawerItemList } from '@react-navigation/drawer';
 import { useTheme } from 'react-native-paper';
 import { View, StyleSheet } from 'react-native';
@@ -60,6 +60,7 @@ const CustomDrawerContent = (props: any) => {
 
 const DrawerNavigator = () => {
   const theme = useTheme();
+  const recordingScreenRef = useRef(null);
 
 
   return (
@@ -81,24 +82,11 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="My Appointments"
         component={RecordingScreen}
-        options={({ navigation }) => ({
-          drawerLabel: 'My Appointments',
-          drawerIcon: ({ focused, color, size }) => (
+        options={{ drawerLabel: 'My Appointments', 
+        drawerIcon: ({ focused, color, size }) => (
             <MaterialCommunityIcons name="calendar" color={color} size={size} />
           ),
-          headerRight: () => (
-            <MaterialCommunityIcons
-              name="refresh"
-              size={24}
-              color={useTheme().colors.primary}
-              onPress={() => {
-                // Add your refresh logic here
-                console.log('Refresh button pressed');
-              }}
-              style={{ marginRight: 20 }}
-            />
-          ),
-        })}
+        }}
       />
     </Drawer.Navigator>
   );

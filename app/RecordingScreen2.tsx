@@ -127,6 +127,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   const [iscreateMeetingSheetOpen, setIscreateMeetingSheetOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Appointment | null>(null);
   const refreshAppointmentsRef = useRef<() => void>(() => {});
+  const calendarRef = useRef();
 
 
 
@@ -217,6 +218,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   {isMounted && (
     <>
       <CalendarAppointments 
+        ref={calendarRef}
         setSelectedEvent={setSelectedEvent} 
         setIsSheetOpen={setIscreateMeetingSheetOpen} 
         setRefreshAppointments={setRefreshAppointments}
