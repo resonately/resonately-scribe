@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, Animated, Easing, AppState, AppStateStatus } from 'react-native';
+import { View, StyleSheet, Text, Animated, Easing, AppState, AppStateStatus, Alert } from 'react-native';
 import { FAB, useTheme } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppointmentManager from './AppointmentManager';
@@ -39,7 +39,15 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     useEffect(() => {
         const initializeRecording = async () => {
             if (appointment) {
-                await AppointmentManager.startRecording(appointment.id);
+                try {
+                    await AppointmentManager.startRecording(appointment.id);
+                } catch (error: any) {
+                    console.error(">>> Error in starting recording", error?.message);
+                    Alert.alert('Error', error?.message);
+                    collapseSheet?.();
+                    navigation.navigate('DrawerNavigator');
+                }
+                
             }
         };
 
@@ -59,7 +67,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
         const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
         return () => {
-            AppointmentManager.stopRecording();
+            // AppointmentManager.stopRecording();
             if (appStateSubscription) {
                 appStateSubscription.remove();
             }
