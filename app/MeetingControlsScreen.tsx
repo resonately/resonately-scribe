@@ -40,6 +40,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
         const initializeRecording = async () => {
             if (appointment) {
                 try {
+                    console.log(">>>>> starting a recording.....");
                     await AppointmentManager.startRecording(appointment.id);
                 } catch (error: any) {
                     console.error(">>> Error in starting recording", error?.message);
@@ -104,22 +105,29 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     };
 
     const handlePauseToggle = async () => {
-        const newPausedState = !paused;
-        handleToggle(setPaused, paused);
-        await AppointmentManager.pauseRecording();
+        try{
+            const newPausedState = !paused;
+            handleToggle(setPaused, paused);
+            console.log(">>>> calling pause recording: paused: ",paused);
+            if(!paused){ // pause the recording if not already paused
+                await AppointmentManager.pauseRecording();
+            }
 
-        if (!muted && !newPausedState) {
-            await AppointmentManager.resumeRecording();
+            if (!muted && paused) {
+                await AppointmentManager.resumeRecording();
+            }
+
+            // Log the event for pause toggle
+            analytics().logEvent('pause_toggle', {
+                component: 'MeetingControlsScreen',
+                appointmentId: appointment?.id,
+                status: newPausedState ? 'paused' : 'resumed'
+            });
+        } catch (err: any) {
+            Alert.alert(err);
+            console.log("Error in handlePause toggle: ", err);
         }
-
-        console.log('Pause button pressed, isPaused:', newPausedState);
-
-        // Log the event for pause toggle
-        analytics().logEvent('pause_toggle', {
-            component: 'MeetingControlsScreen',
-            appointmentId: appointment?.id,
-            status: newPausedState ? 'paused' : 'resumed'
-        });
+        
     };
 
     const handleEndMeeting = async () => {

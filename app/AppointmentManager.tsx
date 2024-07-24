@@ -112,7 +112,7 @@ class AppointmentManager {
 
     private async handleRecordingStatusUpdate (status: Audio.RecordingStatus) {
         if (status.isRecording) {
-          console.log('Recording is ongoing...');
+        //   console.log('Recording is ongoing...');
         } else if (status.isDoneRecording) {
           console.log('Recording is done');
         } else if (status.mediaServicesDidReset) {
@@ -138,12 +138,17 @@ class AppointmentManager {
 
     private async startAudioRecording() {
         console.log('Starting recording...');
-        const { recording, status } = await Audio.Recording.createAsync(
-            Audio.RecordingOptionsPresets.HIGH_QUALITY,
-            this.handleRecordingStatusUpdate
-        );
-        this.chunkStartTimeRef = new Date(); // Set the start time for the chunk
-        return {recording, status};
+        // try {
+            const { recording, status } = await Audio.Recording.createAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY,
+                this.handleRecordingStatusUpdate
+            );
+            this.chunkStartTimeRef = new Date(); // Set the start time for the chunk
+            return {recording, status};
+        // } catch (error) {
+        //     console.log(">>>>> error in start audio recording: ", error);
+        // }
+        
     }
 
     private async addNewRecordingToList(newRecordingId: string, appointmentId: string) {
@@ -166,11 +171,7 @@ class AppointmentManager {
     }
 
     private async stopAndUnloadRecording(recording: Audio.Recording | null) {
-       
-        const status = await recording?.getStatusAsync();
-        if(status && status.isRecording) {
-            await recording?.stopAndUnloadAsync();
-        }
+        await recording?.stopAndUnloadAsync();
     }
 
     private async handleRecordingUri(recording: Audio.Recording | null) {
@@ -228,27 +229,33 @@ class AppointmentManager {
 
     public async handleChunkCreation(isLastChunk: boolean = false) {
         try {
-            const unloadingStatus = await this.stopAndUnloadRecording(this.recordingRef);
-            const localFileUri = await this.handleRecordingUri(this.recordingRef);
+            console.log(">>>>> Inside handle chunk creation: isLastChunk", isLastChunk);
+            const status = await this.recordingRef?.getStatusAsync();
+            if(status && status.isRecording) {
+                const unloadingStatus = await this.stopAndUnloadRecording(this.recordingRef);
+                const localFileUri = await this.handleRecordingUri(this.recordingRef);
 
-            if (localFileUri) {
-                const chunk = this.createChunk(localFileUri, this.chunkStartTimeRef!, new Date(), isLastChunk);
-                await this.addChunkToAsyncStorage(chunk); // Add chunk to async storage
-                this.incrementChunkCounter();
+                
 
-                // Log the event for chunk creation
-                analytics().logEvent('chunk_created', {
-                    component: 'AppointmentManager',
-                    appointmentId: this.recordingsRef.find(rec => rec.id === this.recordingIdRef)?.appointmentId,
-                    recordingId: this.recordingIdRef,
-                    chunk_position: chunk.position,
-                    isLastchunk: chunk.isLastChunk,
-                    status: chunk.status
-                });
+                if (localFileUri) {
+                    const chunk = this.createChunk(localFileUri, this.chunkStartTimeRef!, new Date(), isLastChunk);
+                    await this.addChunkToAsyncStorage(chunk); // Add chunk to async storage
+                    this.incrementChunkCounter();
+
+                    // Log the event for chunk creation
+                    analytics().logEvent('chunk_created', {
+                        component: 'AppointmentManager',
+                        appointmentId: this.recordingsRef.find(rec => rec.id === this.recordingIdRef)?.appointmentId,
+                        recordingId: this.recordingIdRef,
+                        chunk_position: chunk.position,
+                        isLastchunk: chunk.isLastChunk,
+                        status: chunk.status
+                    });
+                }
             }
 
         } catch (error: any) {
-            console.error(error.message);
+            console.error(">>>>>>>>>>> Inside handle chunk creation", error.message);
             // Log the event for chunk creation failure
             analytics().logEvent('chunk_creation_failed', {
                 component: 'AppointmentManager',
@@ -286,9 +293,14 @@ class AppointmentManager {
             // Set up interval to stop and restart the recording every minute
             this.recordingIntervalRef = setInterval(async () => {
                 try {
+
                     await this.handleChunkCreation();
-                    const newRecording = await this.startAudioRecording();
-                    this.recordingRef = recording;
+                    const currentRecordingStatus = await this.recordingRef?.getStatusAsync();
+                    if(currentRecordingStatus?.isDoneRecording){
+                        const { recording, status } = await this.startAudioRecording();
+                        this.recordingRef = recording;
+                    }
+                   
                 } catch (error) {
                     console.error('Error running handleChunkCreation: ' + error);
                 }
@@ -311,7 +323,6 @@ class AppointmentManager {
 
     public async pauseRecording() {
         if (this.recordingRef) {
-            console.log(`Recording Paused.`);
             try {
                 await this.recordingRef.pauseAsync();
                 console.log('Recording paused');
@@ -325,7 +336,7 @@ class AppointmentManager {
                     isLastchunk: false,
                     status: 'paused'
                 });
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Failed to pause recording:', error);
                 // Log the event for failed pause recording
                 analytics().logEvent('pause_recording_failed', {
@@ -337,6 +348,7 @@ class AppointmentManager {
                     status: 'failed',
                     error_message: JSON.stringify(error)
                 });
+                throw new Error(error?.message ?? "Failed to pause recording");
             }
         }
     }
@@ -399,7 +411,7 @@ class AppointmentManager {
             
 
         } catch (error: any) {
-            console.error(error.message);
+            console.error(">>>> Inside stop recording error: ", error.message);
             // Log the event for failed stop recording
             analytics().logEvent('stop_recording_failed', {
                 component: 'AppointmentManager',
