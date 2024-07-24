@@ -2,7 +2,7 @@
   "expo": {
     "name": "My Resonately",
     "slug": "AIScribeApp",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/resonately-icon-1024.png",
     "scheme": "myapp",
@@ -66,6 +66,9 @@
       },
       "eas": {
         "projectId": "b65b67c1-3ab7-4ebe-9482-76c8c9f064c6"
+      },
+      "bugsnag": {
+        "apiKey": "6ce0084909da1a3da92b671dcc7793c2"
       }
     }
   }

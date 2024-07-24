@@ -12,6 +12,8 @@ import {
     storeRecordingLocally,
     uploadChunkToServer,
     deleteRecordingFolder,
+    listRecordingsAsJson,
+    deleteRecordingsByAge,
 } from './RecordUtils';
 import { saveRecordings, loadRecordings } from './AsyncStorageUtils';
 
@@ -38,9 +40,10 @@ export interface Recording {
     chunkCounter: number;
 }
 
-const MAX_CHUNK_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+const MAX_CHUNK_DURATION_MS = 30 * 1000; // 2 minutes
 const CHUNK_UPLOAD_FREQUENCY = 10 * 1000; // 10 seconds
 const BACKGROUND_UPLOAD_TASK = 'BACKGROUND_UPLOAD_TASK';
+const MAX_RECORDINGS_AGE = 2 * 24 * 60 * 60; // 2 days
 
 class AppointmentManager {
     private static instance: AppointmentManager;
@@ -135,12 +138,12 @@ class AppointmentManager {
 
     private async startAudioRecording() {
         console.log('Starting recording...');
-        const { recording } = await Audio.Recording.createAsync(
+        const { recording, status } = await Audio.Recording.createAsync(
             Audio.RecordingOptionsPresets.HIGH_QUALITY,
             this.handleRecordingStatusUpdate
         );
         this.chunkStartTimeRef = new Date(); // Set the start time for the chunk
-        return recording;
+        return {recording, status};
     }
 
     private async addNewRecordingToList(newRecordingId: string, appointmentId: string) {
@@ -163,7 +166,11 @@ class AppointmentManager {
     }
 
     private async stopAndUnloadRecording(recording: Audio.Recording | null) {
-        await recording?.stopAndUnloadAsync();
+       
+        const status = await recording?.getStatusAsync();
+        if(status && status.isRecording) {
+            await recording?.stopAndUnloadAsync();
+        }
     }
 
     private async handleRecordingUri(recording: Audio.Recording | null) {
@@ -221,7 +228,7 @@ class AppointmentManager {
 
     public async handleChunkCreation(isLastChunk: boolean = false) {
         try {
-            await this.stopAndUnloadRecording(this.recordingRef);
+            const unloadingStatus = await this.stopAndUnloadRecording(this.recordingRef);
             const localFileUri = await this.handleRecordingUri(this.recordingRef);
 
             if (localFileUri) {
@@ -261,9 +268,10 @@ class AppointmentManager {
             const newRecordingId = uuid.v4().toString();
             this.updateRecordingId(newRecordingId); // Set the recordingId state
             await this.setAudioMode();
-            const newRecording = await this.startAudioRecording();
+            const { recording, status } = await this.startAudioRecording();
             await this.addNewRecordingToList(newRecordingId, appointmentId);
-            this.recordingRef = newRecording;
+            this.recordingRef = recording;
+
 
             // Log the event for starting recording
             analytics().logEvent('start_recording', {
@@ -280,14 +288,13 @@ class AppointmentManager {
                 try {
                     await this.handleChunkCreation();
                     const newRecording = await this.startAudioRecording();
-                    this.recordingRef = newRecording;
+                    this.recordingRef = recording;
                 } catch (error) {
                     console.error('Error running handleChunkCreation: ' + error);
                 }
             }, MAX_CHUNK_DURATION_MS);
         } catch (err: any) {
             console.error('Failed to start recording', err);
-            Alert.alert('Error', err.message);
             // Log the event for failed start recording
             analytics().logEvent('start_recording_failed', {
                 component: 'AppointmentManager',
@@ -298,6 +305,7 @@ class AppointmentManager {
                 status: 'failed',
                 error_message: err.message
             });
+            throw new Error(err?.message ?? 'Failed to start recording');
         }
     }
 
@@ -362,7 +370,7 @@ class AppointmentManager {
     }
 
     public async stopRecording() {
-        console.log('stopRecording');
+        console.log('>>>> stopRecording');
         // Log the event when recording stops
         analytics().logEvent('stop_recording', {
             component: 'AppointmentManager',
@@ -385,9 +393,10 @@ class AppointmentManager {
                 recording.endDate = endDate;
                 this.updateRecordingsState([...this.recordingsRef]);
                 await saveRecordings(this.recordingsRef);
+                await this.handleChunkCreation(true);
             }
 
-            await this.handleChunkCreation(true);
+            
 
         } catch (error: any) {
             console.error(error.message);
@@ -484,14 +493,65 @@ class AppointmentManager {
             }
         }
     }
+    
+    private async deleteOldRecordings() {
+        console.log('Running deleteOldRecordings function...');
+        const recordingsAsJson = await listRecordingsAsJson();
+        await deleteRecordingsByAge(recordingsAsJson, MAX_RECORDINGS_AGE);
+        // console.log(recordingsAsJson);
+
+        // Fetch recordings from storage
+        const savedRecordings = await loadRecordings();
+        this.recordingsRef = savedRecordings;
+
+        // Iterate over each recording
+        for (const recording of this.recordingsRef) {
+            const startTime = new Date(recording.startDate).getTime();
+            const currentTime = Date.now();
+
+            // Check if the recording is older than 5 seconds
+            if (currentTime - startTime < MAX_RECORDINGS_AGE) {
+                console.log(`Recording ${recording.id} is still young. Ignoring.`);
+                continue;
+            }
+
+            if (recording.chunks.length > 0) {
+                // Get the URI of the first chunk
+                const firstChunkUri = recording.chunks[0].uri;
+
+                try {
+                    // Find the directory of the chunk URI and delete it
+                    console.log(`Deleting directory for recording ${recording.id}...`);
+                    await deleteRecordingFolder(firstChunkUri);
+                    console.log(`Directory deleted for recording ${recording.id}.`);
+                } catch (error) {
+                    console.error(`Failed to delete directory for recording ${recording.id}:`, error);
+                }
+            } else {
+                console.log(`Recording ${recording.id} has no chunks. Deleting recording.`);
+            }
+
+            // Remove the recording from the list
+            this.recordingsRef = this.recordingsRef.filter(rec => rec.id !== recording.id);
+            console.log(`Recording ${recording.id} deleted from the list.`);
+        }
+
+        // Update the recordings storage
+        await saveRecordings(this.recordingsRef);
+        this.updateRecordingsState(this.recordingsRef);
+        console.log('Recordings storage updated.');
+    };
+    
 
     public async uploadChunksPeriodically() {
         if (!this.isProcessingRef) {
             this.isProcessingRef = true;
+            await this.deleteOldRecordings();
             await this.loadAndProcessChunks();
             this.isProcessingRef = false;
         }
     }
+
 
     private async loadAndProcessChunks() {
         const savedRecordings = await loadRecordings();

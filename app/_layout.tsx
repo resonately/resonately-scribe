@@ -17,6 +17,7 @@ import { Camera } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Bugsnag from '@bugsnag/expo'
 
 export type RootStackParamList = {
   PermissionScreen: undefined;
@@ -107,15 +108,21 @@ const RootLayoutComponent = () => {
   );
 };
 
+
 const RootLayout = () => {
+
+  useEffect(() => {
+    Bugsnag.start();
+  }, [])
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <PaperProvider theme={theme}>
-        <AuthProvider>
-          <RootLayoutComponent />
-        </AuthProvider>
-      </PaperProvider>
-    </GestureHandlerRootView>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <PaperProvider theme={theme}>
+          <AuthProvider>
+            <RootLayoutComponent />
+          </AuthProvider>
+        </PaperProvider>
+      </GestureHandlerRootView>
   );
 };
 

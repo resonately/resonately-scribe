@@ -33,6 +33,7 @@ import TimelineCalendarScreen from './SampleTimeline';
 import Constants from 'expo-constants';
 import AppointmentManager from './AppointmentManager';
 import TrackPlayer, { State } from 'react-native-track-player';
+import Bugsnag from '@bugsnag/expo';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
