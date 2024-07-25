@@ -103,7 +103,7 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
 
       // Update marked dates
       const newMarkedDates = {};
-      Object.keys(mappedAppointments).forEach(date => {
+      Object.keys(mappedAppointments)?.forEach(date => {
         newMarkedDates[date] = { marked: true };
       });
       newMarkedDates[selectedDate] = { ...newMarkedDates[selectedDate], selected: true };

@@ -85,8 +85,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const data = await response.json();
       const setCookieHeader = response.headers.get('set-cookie');
       if (setCookieHeader) {
-        await SecureStore.setItemAsync(SESSION_COOKIE_KEY, setCookieHeader);
-        await SecureStore.setItemAsync(AUTH_STATE_KEY, 'true');
+        await SecureStore.setItemAsync(SESSION_COOKIE_KEY, setCookieHeader, {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+        });
+        await SecureStore.setItemAsync(AUTH_STATE_KEY, 'true', {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+        });
       }
       setIsAuthenticated(true);
     } else {
@@ -104,8 +108,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await loginWithCredentials(email, password, tenantDetails);
       if (rememberMe) {
-        await SecureStore.setItemAsync(EMAIL_KEY, email);
-        await SecureStore.setItemAsync(PASSWORD_KEY, password);
+        await SecureStore.setItemAsync(EMAIL_KEY, email, {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+        });
+        await SecureStore.setItemAsync(PASSWORD_KEY, password, {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+        });
       } else {
         await SecureStore.deleteItemAsync(EMAIL_KEY);
         await SecureStore.deleteItemAsync(PASSWORD_KEY);

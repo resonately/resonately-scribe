@@ -332,7 +332,7 @@ const RecordingScreen = (): JSX.Element => {
 
   const createRecording = async () => {
     const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-    const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+    // const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -342,13 +342,11 @@ const RecordingScreen = (): JSX.Element => {
     if (sessionCookie) {
       headers['Cookie'] = sessionCookie;
     }
-    if (userEmail) {
-      headers['created-by'] = userEmail; // replace with actual user id or username
-    }
+    // if (userEmail) {
+    //   headers['created-by'] = userEmail; // replace with actual user id or username
+    // }
 
     try {
-      console.log(sessionCookie);
-      console.log(userEmail);
       console.log(tenantName);
       const response = await fetch(`${API_BASE_URL}/server/v1/start-recording`, {
         method: 'POST',
@@ -435,7 +433,7 @@ const RecordingScreen = (): JSX.Element => {
 
   const stopRecordingOnServer = async (recordingId: string, endDate: string) => {
     const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-    const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+    // const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
