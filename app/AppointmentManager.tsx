@@ -41,7 +41,7 @@ export interface Recording {
     chunkCounter: number;
 }
 
-const MAX_CHUNK_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+const MAX_CHUNK_DURATION_MS = 20 * 1000; // 2 minutes
 const CHUNK_UPLOAD_FREQUENCY = 10 * 1000; // 10 seconds
 const BACKGROUND_UPLOAD_TASK = 'BACKGROUND_UPLOAD_TASK';
 const MAX_RECORDINGS_AGE = 2 * 24 * 60 * 60; // 2 days
@@ -231,6 +231,8 @@ class AppointmentManager {
     public async handleChunkCreation(isLastChunk: boolean = false) {
         try {
             console.log(">>>>> Inside handle chunk creation: isLastChunk", isLastChunk);
+            console.log(`this.recordingRef`);
+            console.log(this.recordingRef);
             let status = await this.recordingRef?.getStatusAsync();
 
             console.log(`Status: ${JSON.stringify(status)}`);
@@ -241,7 +243,7 @@ class AppointmentManager {
 
             status = await this.recordingRef?.getStatusAsync();
 
-            if(status && status.isRecording) {
+            if(status && status.canRecord) {
                 const unloadingStatus = await this.stopAndUnloadRecording(this.recordingRef);
                 const localFileUri = await this.handleRecordingUri(this.recordingRef);
 
@@ -304,6 +306,9 @@ class AppointmentManager {
 
                     await this.handleChunkCreation();
                     const currentRecordingStatus = await this.recordingRef?.getStatusAsync();
+                    console.log(`Chunk handled`);
+                    console.log(currentRecordingStatus);
+                    console.log(currentRecordingStatus?.isDoneRecording);
                     if(currentRecordingStatus?.isDoneRecording){
                         const { recording, status } = await this.startAudioRecording();
                         this.recordingRef = recording;

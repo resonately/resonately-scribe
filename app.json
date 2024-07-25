@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "35",
+      "buildNumber": "36",
       "bundleIdentifier": "com.myhearingapp.AIScribeApp",
       "icon": "./assets/images/resonately-icon-1024.png",
       "googleServicesFile": "./GoogleService-Info.plist",
