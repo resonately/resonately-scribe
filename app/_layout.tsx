@@ -17,7 +17,9 @@ import { Camera } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Bugsnag from '@bugsnag/expo'
+import Bugsnag from '@bugsnag/expo';
+import { Provider as ReduxProvider } from 'react-redux';
+import { store } from '@/store/store';
 
 export type RootStackParamList = {
   PermissionScreen: undefined;
@@ -116,12 +118,14 @@ const RootLayout = () => {
   }, [])
 
   return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <PaperProvider theme={theme}>
-          <AuthProvider>
-            <RootLayoutComponent />
-          </AuthProvider>
-        </PaperProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <ReduxProvider store={store}>
+          <PaperProvider theme={theme}>
+            <AuthProvider>
+              <RootLayoutComponent />
+            </AuthProvider>
+          </PaperProvider>
+          </ReduxProvider>
       </GestureHandlerRootView>
   );
 };

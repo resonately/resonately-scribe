@@ -64,11 +64,11 @@
       "router": {
         "origin": false
       },
-      "eas": {
-        "projectId": "b65b67c1-3ab7-4ebe-9482-76c8c9f064c6"
-      },
       "bugsnag": {
         "apiKey": "6ce0084909da1a3da92b671dcc7793c2"
+      },
+      "eas": {
+        "projectId": "2ed0bb1b-aee1-475d-8651-9b1cd435f149"
       }
     }
   }

@@ -5,6 +5,7 @@ import { Audio } from 'expo-av';
 import { Chunk } from './RecordingScreen';
 import { Recording } from './RecordingScreen2';
 import Constants from 'expo-constants';
+import { store } from '@/store/store';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -49,10 +50,13 @@ export const storeRecordingLocally = async (recordingUri: string, recordingId: s
 };
 
 export const deleteAppointment = async (appointmentId: number, tenantName: string): Promise<boolean> => {
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-  const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  // let userEmail = store.getState().secureStore.sessionUserEmail;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
-  if (!sessionCookie || !userEmail) {
+  if (!sessionCookie) {
     console.error('Session cookie or user email not found.');
     return false;
   }
@@ -61,7 +65,6 @@ export const deleteAppointment = async (appointmentId: number, tenantName: strin
     'x-tenant-name': tenantName,
     'Content-Type': 'application/json',
     'Cookie': sessionCookie,
-    'created-by': userEmail,
   };
 
   try {
@@ -101,8 +104,10 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
     return true;
   }
 
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-  const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
@@ -111,9 +116,6 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
 
   if (sessionCookie) {
     headers['Cookie'] = sessionCookie;
-  }
-  if (userEmail) {
-    headers['created-by'] = userEmail;
   }
 
   const formData = new FormData();
@@ -181,11 +183,12 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
     return true;
   }
 
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-  const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
   console.log('Session Cookie:', sessionCookie);
-  console.log('User Email:', userEmail);
   console.log('Tenant Name:', tenantName);
 
   const headers: HeadersInit = {
@@ -194,9 +197,6 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 
   if (sessionCookie) {
     headers['Cookie'] = sessionCookie;
-  }
-  if (userEmail) {
-    headers['created-by'] = userEmail;
   }
 
   const formData = new FormData();
@@ -255,8 +255,11 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 };
 
 export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string): Promise<any> => {
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-
+  // const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
   if (!sessionCookie) {
     console.error('Session cookie not found.');
@@ -302,7 +305,10 @@ export const createAppointment = async (
   notes: string,
   tenantName: string
 ): Promise<{ success: boolean, appointmentId?: string }> => {
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
   if (!sessionCookie) {
     console.error('Session cookie not found.');
