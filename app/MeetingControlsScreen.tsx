@@ -167,13 +167,13 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                         style={[styles.fab, styles.fabMutePause, muted && styles.fabToggled]}
                         color={muted ? 'red' : theme.colors.primary}
                     /> */}
-                    <FAB
+                    {/* <FAB
                         icon={paused ? "play" : "pause"}
                         label={paused ? "Resume" : "Pause"}
                         onPress={handlePauseToggle}
                         style={[styles.fab, styles.fabMutePause, paused && styles.fabToggled]}
                         color={paused ? 'red' : theme.colors.primary}
-                    />
+                    /> */}
                 </View>
                 <FAB
                     icon="phone-hangup"
