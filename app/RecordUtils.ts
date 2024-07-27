@@ -22,7 +22,7 @@ export const storeRecordingLocally = async (recordingUri: string, recordingId: s
     const recordingDir = `${FileSystem.documentDirectory}recordings/rec_${recordingId}/`;
 
     // Ensure the directory exists
-    console.log('Creating directory:', recordingDir);
+    // console.log('Creating directory:', recordingDir);
     await FileSystem.makeDirectoryAsync(recordingDir, { intermediates: true });
 
     // Generate a unique filename using a timestamp
@@ -36,7 +36,7 @@ export const storeRecordingLocally = async (recordingUri: string, recordingId: s
     }
 
     // Move the recording to the new location
-    console.log(`Moving file from ${recordingUri} to ${localFileUri}`);
+    // console.log(`Moving file from ${recordingUri} to ${localFileUri}`);
     await FileSystem.moveAsync({
       from: recordingUri,
       to: localFileUri,
@@ -92,10 +92,10 @@ export const deleteAppointment = async (appointmentId: number, tenantName: strin
 export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantName: string): Promise<boolean> => {
   const { position, startTime, endTime, uri } = chunk;
 
-  console.log('Recording ID:', recordingId);
-  console.log('Chunk Start Time:', startTime);
-  console.log('Chunk End Time:', endTime);
-  console.log('Chunk URI:', uri);
+  // console.log('Recording ID:', recordingId);
+  // console.log('Chunk Start Time:', startTime);
+  // console.log('Chunk End Time:', endTime);
+  // console.log('Chunk URI:', uri);
 
   const fileExists = await FileSystem.getInfoAsync(uri);
 
@@ -147,7 +147,7 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
         console.log('Chunk uploaded successfully.');
         return true;
       } else if (response.status >= 500 || !navigator.onLine) {
-        console.log(response.statusText);
+        // console.log(response.statusText);
         // Server-side error or no network
         console.log('Server error or no network. Retrying...');
       } else {
@@ -171,10 +171,10 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
 export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, tenantName: string): Promise<boolean> => {
   const { position, startTime, endTime, uri } = chunk;
 
-  console.log('Recording ID:', JSON.stringify(recording));
-  console.log('Chunk Start Time:', startTime);
-  console.log('Chunk End Time:', endTime);
-  console.log('Chunk URI:', uri);
+  // console.log('Recording ID:', JSON.stringify(recording));
+  // console.log('Chunk Start Time:', startTime);
+  // console.log('Chunk End Time:', endTime);
+  // console.log('Chunk URI:', uri);
 
   const fileExists = await FileSystem.getInfoAsync(uri);
 
@@ -188,8 +188,8 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
     sessionCookie = await SecureStore.getItemAsync('sessionCookie');
   }
 
-  console.log('Session Cookie:', sessionCookie);
-  console.log('Tenant Name:', tenantName);
+  // console.log('Session Cookie:', sessionCookie);
+  // console.log('Tenant Name:', tenantName);
 
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
@@ -280,8 +280,8 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
 
     if (response.ok) {
       const data = await response.json();
-      console.log('Appointments fetched successfully.');
-      console.log(API_BASE_URL);
+      // console.log('Appointments fetched successfully.');
+      // console.log(API_BASE_URL);
       return data.appointments;
     } else {
       console.error('Failed to fetch appointments. Status:', response.status);
@@ -369,7 +369,7 @@ interface RecordingInfo {
 }
 
 export const deleteRecordingsByAge = async (recordings: RecordingInfo[], maxAgeInSeconds: number): Promise<void> => {
-  console.log(`deleteRecordingsByAge`);
+  // console.log(`deleteRecordingsByAge`);
   try {
     for (const recording of recordings) {
       if (recording.ageInSeconds > maxAgeInSeconds) {
@@ -377,7 +377,7 @@ export const deleteRecordingsByAge = async (recordings: RecordingInfo[], maxAgeI
         console.log(`Deleted file: ${recording.filePath}`);
       }
     }
-    console.log('Old recordings deleted successfully.');
+    // console.log('Old recordings deleted successfully.');
   } catch (error) {
     console.error('Error deleting old recordings:', error);
   }
@@ -418,7 +418,7 @@ export const listRecordingsAsJson = async (): Promise<RecordingInfo[]> => {
         }
       }
     } else {
-      console.log('No recordings directory found.');
+      // console.log('No recordings directory found.');
     }
   } catch (error) {
     console.error('Error listing recordings with ages:', error);

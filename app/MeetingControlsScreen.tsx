@@ -108,12 +108,14 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
         try{
             const newPausedState = !paused;
             handleToggle(setPaused, paused);
-            console.log(">>>> calling pause recording: paused: ",paused);
+            
             if(!paused){ // pause the recording if not already paused
+                console.log(">>>> pausing the recording ");
                 await AppointmentManager.pauseRecording();
             }
 
             if (!muted && paused) {
+                console.log(">>>> resuming  the recording ");
                 await AppointmentManager.resumeRecording();
             }
 
@@ -131,19 +133,25 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     };
 
     const handleEndMeeting = async () => {
-        await AppointmentManager.stopRecording();
-        console.log('End Meeting button pressed');
-        if (collapseSheet) {
-            collapseSheet();
+        try {
+            const isMeetingStopped = await AppointmentManager.stopRecording();
+            if(isMeetingStopped) {
+                if (collapseSheet) {
+                    collapseSheet();
+                }
+                navigation.navigate('DrawerNavigator');
+        
+                // Log the event for ending the meeting
+                analytics().logEvent('end_meeting', {
+                    component: 'MeetingControlsScreen',
+                    appointmentId: appointment?.id,
+                    status: 'ended'
+                });
+            }   
+        } catch(err: any) {
+            console.log("Error in handleEndMeeting: ", err);
+            Alert.alert(err);
         }
-        navigation.navigate('DrawerNavigator');
-
-        // Log the event for ending the meeting
-        analytics().logEvent('end_meeting', {
-            component: 'MeetingControlsScreen',
-            appointmentId: appointment?.id,
-            status: 'ended'
-        });
     };
 
     return (

@@ -78,8 +78,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       body: JSON.stringify({ usr: email, pwd: password }),
     });
 
-    console.log('Tenant Details:', tenantDetails);
-    console.log('Response:', response);
+    // console.log('Tenant Details:', tenantDetails);
+    // console.log('Response:', response);
 
     if (response.ok) {
       const data = await response.json();
