@@ -12,8 +12,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    console.log("isAuthenticated");
-    console.log(isAuthenticated);
     if (!isAuthenticated) {
       navigation.dispatch(StackActions.replace('LoginScreen'));
     }
