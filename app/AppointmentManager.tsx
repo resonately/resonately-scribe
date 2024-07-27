@@ -40,7 +40,7 @@ export interface Recording {
     chunkCounter: number;
 }
 
-const MAX_CHUNK_DURATION_MS = 30 * 1000; // 2 minutes
+const MAX_CHUNK_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 const CHUNK_UPLOAD_FREQUENCY = 10 * 1000; // 10 seconds
 const BACKGROUND_UPLOAD_TASK = 'BACKGROUND_UPLOAD_TASK';
 const MAX_RECORDINGS_AGE = 2 * 24 * 60 * 60; // 2 days
