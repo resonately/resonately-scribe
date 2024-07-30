@@ -16,7 +16,7 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from './_layout';
 // Import the necessary types
 
-const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.myhearing.app';
 
 registerTranslation('en', en);
 

@@ -15,7 +15,7 @@ import analytics from '@react-native-firebase/analytics';
 import Constants from 'expo-constants';
 import LoginScreen from './LoginScreen';
 
-const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.myhearing.app';
 
 
 const InviteScreen = () => {

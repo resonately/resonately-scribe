@@ -55,10 +55,17 @@ class AppointmentManager {
     private recordingsRef: Recording[] = [];
     private uploadIntervalRef: NodeJS.Timeout | null = null;
     private isProcessingRef: boolean = false;
+    private isRecordingPaused: boolean = false;
+    private pauseCallback: (() => void) | null = null;
+    private recordingInterruptionCheckTimeout: NodeJS.Timeout | null = null;
 
     private constructor() {
         // Register the background task
         this.registerBackgroundTask();
+    }
+
+    public setPauseCallback(callback: () => void) {
+        this.pauseCallback = callback;
     }
 
     public static getInstance(): AppointmentManager {
@@ -112,14 +119,33 @@ class AppointmentManager {
 
     private async handleRecordingStatusUpdate (status: Audio.RecordingStatus) {
         if (status.isRecording) {
-        console.log('Recording is ongoing...');
+            console.log('Recording is ongoing...');
+            // clear this timeout here because if recording is ongoing, then it is not interrupted
+            if (this.recordingInterruptionCheckTimeout) {
+                clearTimeout(this.recordingInterruptionCheckTimeout);
+                this.recordingInterruptionCheckTimeout = null;
+            }
+
         } else if (status.isDoneRecording) {
           console.log('Recording is done');
         } else if (status.mediaServicesDidReset) {
-          console.log('Media services reset, possibly due to microphone access loss');
+          console.log('>>>>>> Media services reset');
           if (this.recordingRef) {
             this.stopRecording();
           }
+        } else if (!status?.isRecording && !status?.mediaServicesDidReset && status?.durationMillis === 0) {
+            console.log('>>>>>>>> Recording stopped unexpectedly, checking for mic usage by another app...');
+            
+            //if rec interruption timeout is not set, then set it
+            if(!this.recordingInterruptionCheckTimeout && !this.isRecordingPaused) {
+                this.recordingInterruptionCheckTimeout = setTimeout(() => {
+                    console.log('>>>>> Inside timeout for interruption check... calling pause callback now');
+                    clearTimeout(this.recordingInterruptionCheckTimeout!);
+                    this.recordingInterruptionCheckTimeout = null;
+                    this.pauseCallback?.();
+                }, 5000);
+            }
+
         }
     };
 
@@ -136,15 +162,61 @@ class AppointmentManager {
         });
     }
 
+    private async pauseRecordingInInterruption () {
+        if (this.pauseCallback) {
+            this.stopAndUnloadRecording(this.recordingRef);
+            this.pauseCallback();
+            return;
+        }
+    }
+
     private async startAudioRecording() {
+
+
+        // define the status callback here to get the latest values
+        const handleRecordingStatusUpdate = async(status: Audio.RecordingStatus) => {
+            if (status.isRecording) {
+                console.log('Recording is ongoing...');
+                // clear this timeout here because if recording is ongoing, then it is not interrupted
+                if (this.recordingInterruptionCheckTimeout) {
+                    clearTimeout(this.recordingInterruptionCheckTimeout);
+                    this.recordingInterruptionCheckTimeout = null;
+                }
+    
+            } else if (status.isDoneRecording) {
+              console.log('Recording is done');
+            } else if (status.mediaServicesDidReset) {
+              console.log('>>>>>> Media services reset');
+              if (this.recordingRef) {
+                this.stopRecording();
+              }
+            } else if (!status?.isRecording && !status?.mediaServicesDidReset && status?.durationMillis === 0) {
+                console.log('>>>>>>>> Recording stopped unexpectedly, checking for mic usage by another app...');
+                
+                // if rec interruption timeout is not set, then set it
+                if(!this.recordingInterruptionCheckTimeout && !this.isRecordingPaused) {
+                    this.recordingInterruptionCheckTimeout = setTimeout(() => {
+                        console.log('>>>>> Inside timeout for interruption check... calling pause callback now');
+                        clearTimeout(this.recordingInterruptionCheckTimeout!);
+                        this.recordingInterruptionCheckTimeout = null;
+                        this.pauseRecordingInInterruption();
+                    }, 5000);
+                }
+    
+            }
+        };
+    
+
+
         const currentRecodingStatus = await this.recordingRef?.getStatusAsync();
-        console.log('>>>> Inside startAudioRecording: currentRecodingStatus', currentRecodingStatus, this.recordingRef);
+        console.log('>>>> Inside startAudioRecording: currentRecodingStatus', JSON.stringify(currentRecodingStatus));
         // try {
             const { recording, status } = await Audio.Recording.createAsync(
                 Audio.RecordingOptionsPresets.HIGH_QUALITY,
-                this.handleRecordingStatusUpdate
+                handleRecordingStatusUpdate
             );
             this.chunkStartTimeRef = new Date(); // Set the start time for the chunk
+            this.isRecordingPaused = false;
             return {recording, status};
         // } catch (error) {
         //     console.log(">>>>> error in start audio recording: ", error);
@@ -172,6 +244,7 @@ class AppointmentManager {
     }
 
     private async stopAndUnloadRecording(recording: Audio.Recording | null) {
+        console.log(">>>>>> stop and unload the recording");
         await recording?.stopAndUnloadAsync();
     }
 
@@ -213,7 +286,7 @@ class AppointmentManager {
             }
             return rec;
         });
-        console.log(">>>>> Saving chunk to async storage: ", chunk);
+        console.log(">>>>> Saving chunk to async storage: ");
         await saveRecordings(updatedRecordings); // Save updated recordings
         this.updateRecordingsState(updatedRecordings);
     }
@@ -292,11 +365,14 @@ class AppointmentManager {
                 status: 'started'
             });
 
+            /**
+             * TODO - IS this interval being set everytime this function runs? redundant?
+             */
             // Interval ->  stop recording -> create chunk -> start recording again
             this.recordingIntervalRef = setInterval(async () => {
                 try {
                     const currentRecordingStatus = await this.recordingRef?.getStatusAsync();
-                    console.log(">>> Inside interval to stop and restart recording: currentRecordingStatus", currentRecordingStatus);
+                    console.log(">>> Inside interval to stop and restart recording: currentRecordingStatus", JSON.stringify(currentRecordingStatus));
                     
                     // run this only when recording is in progress
                     if(currentRecordingStatus?.isRecording){
@@ -328,6 +404,7 @@ class AppointmentManager {
     public async pauseRecording() {
         if (this.recordingRef) {
             try {
+                this.isRecordingPaused = true;
                 // create the chunk just before pause is invoked to avoid any data loss
                 this.handleChunkCreation();
                 // upload the chunk created so far to the server
@@ -371,6 +448,7 @@ class AppointmentManager {
                 // await this.recordingRef.startAsync();
                 const { recording, status } = await this.startAudioRecording();
                 this.recordingRef = recording;
+                this.isRecordingPaused = false;
 
                 // Log the event for resuming recording
                 analytics().logEvent('resume_recording', {
@@ -406,7 +484,7 @@ class AppointmentManager {
 
             // if recording is not going on, then return
             const currentRecodingStatus = await this.recordingRef?.getStatusAsync();
-            console.log(">>>> Inside stop recording: currentRecodingStatus", currentRecodingStatus);
+            console.log(">>>> Inside stop recording: currentRecodingStatus",JSON.stringify(currentRecodingStatus));
             if(!currentRecodingStatus?.isRecording){
                 Alert.alert("Please resume the recording to end it");
                 return false;
@@ -420,7 +498,7 @@ class AppointmentManager {
 
             // set end date of the recording.
             const recording = this.recordingsRef.find(rec => rec.id === this.recordingIdRef);
-            console.log(">>> Inside stop recording recording: ", recording);
+            console.log(">>> Inside stop recording recording: ");
             const endDate = new Date().toISOString();
             if (recording) {
                 recording.endDate = endDate;

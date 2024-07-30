@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, Animated, Easing, AppState, AppStateStatus, Alert } from 'react-native';
+import { View, StyleSheet, Text, Animated, Easing, AppState, AppStateStatus, Alert, NativeModules, NativeEventEmitter, Platform } from 'react-native';
 import { FAB, useTheme } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppointmentManager from './AppointmentManager';
@@ -8,6 +8,7 @@ import { RootStackParamList } from './_layout';
 import { useNavigation, RouteProp, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FontAwesome5 } from '@expo/vector-icons';
+// import { startListeningForInterruption, addInterruptionListener } from '../modules/audio-interruption';
 
 interface Appointment {
     id: string;
@@ -34,7 +35,29 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const [muted, setMuted] = useState(isMuted);
     const [paused, setPaused] = useState(isPaused);
     const animatedValue = useState(new Animated.Value(0))[0];
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); //
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); 
+
+
+    // TODO - use native interrption module
+    // useEffect(() => {
+    //     startListeningForInterruption()
+    //       .then(() => console.log('Started listening for interruptions'))
+    //       .catch((err) => console.error('Failed to start listening for interruptions:', err));
+    
+    //     const subscription = addInterruptionListener((event) => {
+    //       if (event.status === 'began') {
+    //         // Handle audio interruption began
+    //         console.log('Audio interruption began');
+    //       } else if (event.status === 'ended') {
+    //         // Handle audio interruption ended
+    //         console.log('Audio interruption ended, should resume:', event.shouldResume);
+    //       }
+    //     });
+    
+    //     return () => {
+    //       subscription.remove();
+    //     };
+    //   }, []);
 
     useEffect(() => {
         const initializeRecording = async () => {
@@ -64,6 +87,8 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
 
         initializeRecording();
         AppointmentManager.uploadChunksPeriodically();
+        // console.log(">>> setting handlepause toggle", handlePauseToggle);
+        AppointmentManager.setPauseCallback(handlePauseToggle); 
 
         const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
@@ -105,6 +130,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     };
 
     const handlePauseToggle = async () => {
+        console.log(">>>>>>>>>   ************* . Inside handle pause toggle");
         try{
             const newPausedState = !paused;
             handleToggle(setPaused, paused);
@@ -171,13 +197,13 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                         style={[styles.fab, styles.fabMutePause, muted && styles.fabToggled]}
                         color={muted ? 'red' : theme.colors.primary}
                     /> */}
-                    {/* <FAB
+                    <FAB
                         icon={paused ? "play" : "pause"}
                         label={paused ? "Resume" : "Pause"}
                         onPress={handlePauseToggle}
                         style={[styles.fab, styles.fabMutePause, paused && styles.fabToggled]}
                         color={paused ? 'red' : theme.colors.primary}
-                    /> */}
+                    />
                 </View>
                 <FAB
                     icon="phone-hangup"

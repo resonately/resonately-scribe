@@ -35,7 +35,9 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/resonately-icon.png",
         "backgroundColor": "#2094fc"
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "package": "com.myhearingapp.AIScribeApp"
     },
     "web": {
       "bundler": "metro",
@@ -60,7 +62,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "API_BASE_URL": "https://api.rsn8ly.xyz",
+      "API_BASE_URL": "https://api.myhearing.app",
       "router": {
         "origin": false
       },

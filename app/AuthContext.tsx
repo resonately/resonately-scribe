@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.myhearing.app';
 
 interface AuthContextType {
   isAuthenticated: boolean;

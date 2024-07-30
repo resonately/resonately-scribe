@@ -7,7 +7,7 @@ import { Recording } from './RecordingScreen2';
 import Constants from 'expo-constants';
 import { store } from '@/store/store';
 
-const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.myhearing.app';
 
 export const getRecordingUri = async (recording: Audio.Recording): Promise<string | null> => {
   return recording.getURI();
