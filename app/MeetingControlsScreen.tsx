@@ -88,7 +88,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
         initializeRecording();
         AppointmentManager.uploadChunksPeriodically();
         // console.log(">>> setting handlepause toggle", handlePauseToggle);
-        AppointmentManager.setPauseCallback(handlePauseToggle); 
+        AppointmentManager.setPauseCallback(setPaused); 
 
         const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 

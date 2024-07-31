@@ -16,6 +16,7 @@ import {
     deleteRecordingsByAge,
 } from './RecordUtils';
 import { saveRecordings, loadRecordings } from './AsyncStorageUtils';
+import { Dispatch, SetStateAction } from 'react';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -40,7 +41,7 @@ export interface Recording {
     chunkCounter: number;
 }
 
-const MAX_CHUNK_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+const MAX_CHUNK_DURATION_MS = 30 * 1000; // 2 minutes
 const CHUNK_UPLOAD_FREQUENCY = 10 * 1000; // 10 seconds
 const BACKGROUND_UPLOAD_TASK = 'BACKGROUND_UPLOAD_TASK';
 const MAX_RECORDINGS_AGE = 2 * 24 * 60 * 60; // 2 days
@@ -56,7 +57,8 @@ class AppointmentManager {
     private uploadIntervalRef: NodeJS.Timeout | null = null;
     private isProcessingRef: boolean = false;
     private isRecordingPaused: boolean = false;
-    private pauseCallback: (() => void) | null = null;
+    // private pauseCallback: (() => void) | null = null;
+    private pauseCallback: (Dispatch<SetStateAction<boolean>>) | null = null;
     private recordingInterruptionCheckTimeout: NodeJS.Timeout | null = null;
 
     private constructor() {
@@ -64,7 +66,7 @@ class AppointmentManager {
         this.registerBackgroundTask();
     }
 
-    public setPauseCallback(callback: () => void) {
+    public setPauseCallback(callback: Dispatch<SetStateAction<boolean>>) {
         this.pauseCallback = callback;
     }
 
@@ -142,7 +144,7 @@ class AppointmentManager {
                     console.log('>>>>> Inside timeout for interruption check... calling pause callback now');
                     clearTimeout(this.recordingInterruptionCheckTimeout!);
                     this.recordingInterruptionCheckTimeout = null;
-                    this.pauseCallback?.();
+                    this.pauseCallback?.(true);
                 }, 5000);
             }
 
@@ -165,7 +167,9 @@ class AppointmentManager {
     private async pauseRecordingInInterruption () {
         if (this.pauseCallback) {
             this.stopAndUnloadRecording(this.recordingRef);
-            this.pauseCallback();
+            this.isRecordingPaused = true;
+            this.uploadChunksPeriodically();
+            this.pauseCallback(true);
             return;
         }
     }
