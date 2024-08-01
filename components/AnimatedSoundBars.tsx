@@ -15,7 +15,7 @@ const AnimatedSoundBars = ({ barColor = 'red', isAnimating = false, volume = 1, 
   useEffect(() => {
     const normalizedVolume = normalizeVolume(volume);
 
-    dotAnimations.forEach((node, index) => {
+    dotAnimations?.forEach((node, index) => {
       const middleIndex = dotAnimations.length / 2;
       const distanceFromCenter = Math.abs(index - middleIndex) / middleIndex;
       const scaleFactor = Math.cos(distanceFromCenter * Math.PI); // Wave-like effect using cosine
@@ -35,7 +35,7 @@ const AnimatedSoundBars = ({ barColor = 'red', isAnimating = false, volume = 1, 
 
   useEffect(() => {
     if (isAnimating) {
-      dotAnimations.forEach((node, index) => {
+      dotAnimations?.forEach((node, index) => {
         const middleIndex = dotAnimations.length / 2;
         const distanceFromCenter = Math.abs(index - middleIndex) / middleIndex;
         const scaleFactor = Math.cos(distanceFromCenter * Math.PI); // Wave-like effect using cosine

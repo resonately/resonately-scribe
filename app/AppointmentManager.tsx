@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeIOS } from 'expo-av';
 import * as SecureStore from 'expo-secure-store';
 import { AppState, Alert, Animated } from 'react-native';
 import analytics from '@react-native-firebase/analytics';
@@ -156,7 +156,7 @@ class AppointmentManager {
         await Audio.setAudioModeAsync({
             allowsRecordingIOS: true,
             playsInSilentModeIOS: true,
-            interruptionModeIOS: 0,
+            interruptionModeIOS:  InterruptionModeIOS.MixWithOthers,
             staysActiveInBackground: true,
             interruptionModeAndroid: 1,
             shouldDuckAndroid: true,
@@ -214,7 +214,8 @@ class AppointmentManager {
 
         const currentRecodingStatus = await this.recordingRef?.getStatusAsync();
         console.log('>>>> Inside startAudioRecording: currentRecodingStatus', JSON.stringify(currentRecodingStatus));
-        // try {
+        try {
+            await this.setAudioMode();
             const { recording, status } = await Audio.Recording.createAsync(
                 Audio.RecordingOptionsPresets.HIGH_QUALITY,
                 handleRecordingStatusUpdate
@@ -222,9 +223,9 @@ class AppointmentManager {
             this.chunkStartTimeRef = new Date(); // Set the start time for the chunk
             this.isRecordingPaused = false;
             return {recording, status};
-        // } catch (error) {
-        //     console.log(">>>>> error in start audio recording: ", error);
-        // }
+        } catch (error) {
+            console.log(">>>>> error in start audio recording: ", error);
+        }
         
     }
 
@@ -250,6 +251,9 @@ class AppointmentManager {
     private async stopAndUnloadRecording(recording: Audio.Recording | null) {
         console.log(">>>>>> stop and unload the recording");
         await recording?.stopAndUnloadAsync();
+        await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false
+        })
     }
 
     private async handleRecordingUri(recording: Audio.Recording | null) {

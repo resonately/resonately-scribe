@@ -76,7 +76,7 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
 
   const mapAppointmentsToTimeline = (appointments: any[]): any => {
     const events: any = {};
-    appointments.forEach(appointment => {
+    appointments?.forEach(appointment => {
       const localStart = convertUTCToLocal(appointment.expected_appointment_start_time);
       const localEnd = convertUTCToLocal(appointment.expected_appointment_end_time);
       const date = localStart.split(' ')[0]; // Extract date from local start time
