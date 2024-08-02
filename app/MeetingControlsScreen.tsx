@@ -8,6 +8,7 @@ import { RootStackParamList } from './_layout';
 import { useNavigation, RouteProp, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FontAwesome5 } from '@expo/vector-icons';
+import LiveAudioManager from './LiveAudioManager';
 
 interface Appointment {
     id: string;
@@ -38,8 +39,9 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
         const initializeRecording = async () => {
             try {
                 if (appointment) {
-                    AppointmentManager.uploadChunksPeriodically();
-                    await AppointmentManager.startRecording(appointment.id);
+                    // AppointmentManager.uploadChunksPeriodically();
+                    // await AppointmentManager.startRecording(appointment.id);
+                    await LiveAudioManager.getInstance().startStreaming();
                 }
             } catch (error) {
                 console.error('Error initializing recording:', error);
@@ -135,6 +137,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     };
 
     const handleEndMeeting = async () => {
+        await LiveAudioManager.getInstance().stopStreaming();
         await AppointmentManager.stopRecording();
         console.log('End Meeting button pressed');
         if (collapseSheet) {

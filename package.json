@@ -64,6 +64,7 @@
     "react-native-call-detection": "^1.9.0",
     "react-native-gesture-handler": "~2.16.1",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
+    "react-native-live-audio-stream": "^1.1.1",
     "react-native-music-control": "^1.4.1",
     "react-native-paper": "^5.12.3",
     "react-native-paper-dates": "^0.22.12",
