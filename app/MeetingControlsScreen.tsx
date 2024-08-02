@@ -8,6 +8,7 @@ import { RootStackParamList } from './_layout';
 import { useNavigation, RouteProp, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FontAwesome5 } from '@expo/vector-icons';
+import AudioStreaming from './AudioStreaming';
 
 interface Appointment {
     id: string;
@@ -41,7 +42,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
             if (appointment) {
                 try {
                     console.log(">>>>> starting a recording.....");
-                    await AppointmentManager.startRecording(appointment.id);
+                    await AudioStreaming.startRecording();
                 } catch (error: any) {
                     console.error(">>> Error in starting recording", error?.message);
                     Alert.alert('Error', error?.message);
@@ -134,8 +135,9 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
 
     const handleEndMeeting = async () => {
         try {
-            const isMeetingStopped = await AppointmentManager.stopRecording();
-            if(isMeetingStopped) {
+            await AudioStreaming.stopRecording();
+            // const isMeetingStopped = await AppointmentManager.stopRecording();
+            // if(isMeetingStopped) {
                 if (collapseSheet) {
                     collapseSheet();
                 }
@@ -147,7 +149,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                     appointmentId: appointment?.id,
                     status: 'ended'
                 });
-            }   
+            // }   
         } catch(err: any) {
             console.log("Error in handleEndMeeting: ", err);
             Alert.alert(err);
