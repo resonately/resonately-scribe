@@ -62,6 +62,7 @@
     "react-native": "0.74.2",
     "react-native-calendars": "^1.1305.0",
     "react-native-call-detection": "^1.9.0",
+    "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "~2.16.1",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
     "react-native-live-audio-stream": "^1.1.1",

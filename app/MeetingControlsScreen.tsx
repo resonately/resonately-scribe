@@ -137,8 +137,8 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     };
 
     const handleEndMeeting = async () => {
-        await LiveAudioManager.getInstance().stopStreaming();
-        await AppointmentManager.stopRecording();
+        LiveAudioManager.getInstance().stopStreaming();
+        // await AppointmentManager.stopRecording();
         console.log('End Meeting button pressed');
         if (collapseSheet) {
             collapseSheet();
