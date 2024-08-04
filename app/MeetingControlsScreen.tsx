@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Animated, Easing, AppState, AppStateStatus } from 'react-native';
 import { FAB, useTheme } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import AppointmentManager from './AppointmentManager';
+// import AppointmentManager from './AppointmentManager';
 import analytics from '@react-native-firebase/analytics';
 import { RootStackParamList } from './_layout';
 import { useNavigation, RouteProp, useRoute } from '@react-navigation/native';
@@ -41,7 +41,8 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 if (appointment) {
                     // AppointmentManager.uploadChunksPeriodically();
                     // await AppointmentManager.startRecording(appointment.id);
-                    await LiveAudioManager.getInstance().startStreaming();
+                    LiveAudioManager.getInstance().startStreaming(appointment.id);
+                    LiveAudioManager.getInstance().setPauseCallback(setPaused);
                 }
             } catch (error) {
                 console.error('Error initializing recording:', error);
@@ -101,10 +102,10 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const handleMuteToggle = async () => {
         const newMutedState = !muted;
         handleToggle(setMuted, muted);
-        await AppointmentManager.pauseRecording();
+        // await AppointmentManager.pauseRecording();
 
         if (!newMutedState && !paused) {
-            await AppointmentManager.resumeRecording();
+            // await AppointmentManager.resumeRecording();
         }
 
         console.log('Mute button pressed, isMuted:', newMutedState);
@@ -120,13 +121,12 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const handlePauseToggle = async () => {
         const newPausedState = !paused;
         handleToggle(setPaused, paused);
-        await AppointmentManager.pauseRecording();
 
-        if (!muted && !newPausedState) {
-            await AppointmentManager.resumeRecording();
+        if (newPausedState) {
+            LiveAudioManager.getInstance().pauseStreaming();
+        } else {
+            LiveAudioManager.getInstance().resumeStreaming();
         }
-
-        console.log('Pause button pressed, isPaused:', newPausedState);
 
         // Log the event for pause toggle
         analytics().logEvent('pause_toggle', {
@@ -153,6 +153,8 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
         });
     };
 
+    console.log("value of paused is: ", paused);
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>{appointment?.title}</Text>
@@ -170,13 +172,13 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                         style={[styles.fab, styles.fabMutePause, muted && styles.fabToggled]}
                         color={muted ? 'red' : theme.colors.primary}
                     /> */}
-                    {/* <FAB
+                    <FAB
                         icon={paused ? "play" : "pause"}
                         label={paused ? "Resume" : "Pause"}
                         onPress={handlePauseToggle}
                         style={[styles.fab, styles.fabMutePause, paused && styles.fabToggled]}
                         color={paused ? 'red' : theme.colors.primary}
-                    /> */}
+                    />
                 </View>
                 <FAB
                     icon="phone-hangup"
