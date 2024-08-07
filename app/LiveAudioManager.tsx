@@ -1,33 +1,35 @@
 import LiveAudioStream, { Options } from 'react-native-live-audio-stream';
 import { Buffer } from 'buffer';
 import * as FileSystem from 'expo-file-system';
+import uuid from 'react-native-uuid';
 import { Dispatch, SetStateAction } from 'react';
+import { Chunk, CHUNK_STATUS, Recording, RECORDING_STATUS } from './types';
 
 const DATA_CHECK_INTERVAL: number = 5000; // 5 seconds
 const MAX_DATA_WAIT_TIME: number = 5000; // 10 seconds
 const CHUNK_DURATION: number = 30000; // 30 seconds in milliseconds
-
 
 class LiveAudioManager {
   private static instance: LiveAudioManager;
   private isStreaming: boolean = false;
   private isPaused: boolean = false;
   private currentChunk: Buffer = Buffer.alloc(0);
-  private chunkStartTime: number = 0;
+  private chunkStartTime: string = '';
   private chunkCounter: number = 0;
   private lastDataReceivedTime: number = 0;
   private dataCheckTimer: NodeJS.Timeout | null = null;
   private pauseCallback: Dispatch<SetStateAction<boolean>> | null = null;
   private handleCompleteChunkInterval: NodeJS.Timeout | null = null;
-  private appointmentId: string = '';
+  private appointmentId: string | undefined = undefined;
+  private currentRecordingObj: Recording | null = null;
 
-  private constructor() {
-    this.initializeAudioStream();
+  private constructor(appointmentId?: string) {
+    // this.initializeAudioStream(appointmentId);
   }
 
-  public static getInstance(): LiveAudioManager {
+  public static getInstance(appointmentId?: string): LiveAudioManager {
     if (!LiveAudioManager.instance) {
-      LiveAudioManager.instance = new LiveAudioManager();
+      LiveAudioManager.instance = new LiveAudioManager(appointmentId);
     }
     return LiveAudioManager.instance;
   }
@@ -36,7 +38,11 @@ class LiveAudioManager {
     this.pauseCallback = callback;
 }
 
-  private initializeAudioStream(): void {
+  private initializeAudioStream(appointmentId?: string): void {
+
+    if(!appointmentId) {
+      throw new Error("Appointment Id missing");
+    }
     const options: Options = {
       sampleRate: 32000,
       channels: 1,
@@ -48,6 +54,20 @@ class LiveAudioManager {
 
     LiveAudioStream.init(options);
 
+
+    if(!this.isPaused) {
+      this.appointmentId = appointmentId;
+      this.currentRecordingObj = {
+        id: uuid.v4().toString(),
+        appointmentId: appointmentId,
+        startDate: new Date().toISOString(),
+        endDate: null,
+        status: RECORDING_STATUS.In_Progress,
+        chunks: [],
+        chunkCounter: 0,
+      }
+    }
+
     LiveAudioStream.on('data', (data: string) => {
       if (this.isStreaming && !this.isPaused) {
         console.log("Recoding is ongoing...");
@@ -57,10 +77,10 @@ class LiveAudioManager {
       }
     });
 
-    this.handleCompleteChunkInterval = setInterval(() => {
-      if (this.isStreaming && this.currentChunk.length > 0) {
-        console.log("***** calling handle complete chunk.....");
-        this.handleCompleteChunk();
+    this.handleCompleteChunkInterval = setInterval(async () => {
+      if (this.isStreaming && this.currentChunk.length > 0 && !this.isPaused) {
+        console.log(">>> calling handle complete chunk..... last recording object", this.currentRecordingObj);
+        await this.handleCompleteChunk();
       }
     }, 20000);
 
@@ -70,13 +90,13 @@ class LiveAudioManager {
 
   // checking for interruption
   private startDataCheckTimer(): void {
-    this.dataCheckTimer = setInterval(() => {
+    this.dataCheckTimer = setInterval(async () => {
       console.log("Inside data check interval", this.isPaused, this.isStreaming);
       if (this.isStreaming && !this.isPaused) {
         const currentTime = Date.now();
         if (currentTime - this.lastDataReceivedTime > MAX_DATA_WAIT_TIME) {
           console.log('No data received for a while, pausing the recording');
-          this.pauseStreaming(true);
+          await this.pauseStreaming(true);
         }
       }
     }, DATA_CHECK_INTERVAL);
@@ -91,121 +111,190 @@ class LiveAudioManager {
 
   private processAudioChunk(chunk: Buffer): void {
     if (this.currentChunk.length === 0) {
-      this.chunkStartTime = Date.now();
+      console.log(">>>> Updating this.chunkStartTime ");
+      this.chunkStartTime = new Date().toISOString();
     }
 
     this.currentChunk = Buffer.concat([this.currentChunk, chunk]);
   }
 
-  private async handleCompleteChunk(): Promise<void> {
+  private createChunk({ chunkCounter, isLastChunk = false, uri, startTime }: {chunkCounter: number, isLastChunk: boolean, uri: string, startTime: string}): Chunk{
+    return {
+      position: chunkCounter,
+      isLastChunk,
+      uri, 
+      startTime: startTime ?? new Date(new Date().getTime() - CHUNK_DURATION).toISOString(),
+      endTime: new Date().toISOString(),
+      status: CHUNK_STATUS.Created,
+    }
+  }
+
+  private updateCurrentRecording(chunk: Chunk, currentChunkPosition: number, isLastChunk: boolean) {
+    console.log(">>>> Inside updatecurrentrecording: ", isLastChunk, chunk);
+    if(this.currentRecordingObj) {
+      this.currentRecordingObj = {
+        ...this.currentRecordingObj,
+        endDate: isLastChunk ? new Date().toISOString() : null,
+        chunkCounter: currentChunkPosition + 1,
+        chunks: [...this.currentRecordingObj?.chunks, chunk],
+      }
+    }
+   
+  }
+
+  private async handleCompleteChunk({isLastChunk}: { isLastChunk: boolean } = {isLastChunk: false}): Promise<void> {
+    console.log(">>> Inside handlecomplete chunk appointmentId is:", this.appointmentId, isLastChunk);
     const chunkFileName = `audio_chunk_${this.chunkCounter}.raw`;
-    const chunkFilePath = `${FileSystem.cacheDirectory}${chunkFileName}`;
+    const chunkFilePath = `${FileSystem.documentDirectory}recordings/${this.appointmentId}/${chunkFileName}`;
 
     try {
+      await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}recordings/${this.appointmentId}`, { intermediates: true });
       await FileSystem.writeAsStringAsync(chunkFilePath, this.currentChunk.toString('base64'), { encoding: FileSystem.EncodingType.Base64 });
-      console.log(`Completed 30-second chunk: ${this.currentChunk.length} bytes`);
-      console.log(`Saved to: ${chunkFilePath}`);
-
-      // Process the saved chunk file
-      await this.processChunkFile(chunkFilePath);
 
       // Reset for the next chunk
       this.currentChunk = Buffer.alloc(0);
+      const newChunkObj = this.createChunk({ chunkCounter: this.chunkCounter, isLastChunk , startTime: this.chunkStartTime, uri: chunkFilePath });
+      console.log(">>>> newChunkObject: ", newChunkObj);
+      this.updateCurrentRecording(newChunkObj, this.chunkCounter, isLastChunk);
       this.chunkCounter++;
-      this.chunkStartTime = Date.now(); 
+
+      // create a new chunk and increment chunk counter and update this.currentRecordingObj
+
     } catch (error) {
-      console.error('Error saving audio chunk:', error);
+      console.error('Error saving audio chunk to local file:', error);
     }
   }
 
-  private async processChunkFile(filePath: string): Promise<void> {
-    console.log(`Processing chunk file: ${filePath}`);
-    try {
-      const contents = await FileSystem.readAsStringAsync(filePath, { encoding: FileSystem.EncodingType.Base64 });
-      console.log(contents);
-      
-      // Here you can add more processing logic
-      // For example, you might want to send this file to a server
-      // await this.sendChunkToServer(filePath);
-    } catch (error) {
-      console.error('Error processing chunk file:', error);
-    }
-  }
-
-  // Example method to send chunk to a server (not implemented)
-  // private async sendChunkToServer(filePath: string): Promise<void> {
-  //   // Implementation depends on your server setup and requirements
-  // }
 
   public startStreaming(appointmentId: string): void {
-    if (!this.isStreaming) {
+    // if (!this.isStreaming) {
+    try{
+      this.initializeAudioStream(appointmentId);
       LiveAudioStream.start();
       this.isStreaming = true;
       this.isPaused = false;
       this.currentChunk = Buffer.alloc(0);
-      this.chunkStartTime = Date.now();
+      this.chunkStartTime = new Date().toISOString();
       this.chunkCounter = 0;
       this.lastDataReceivedTime = Date.now();
-      if(appointmentId) {
-        console.log('Fresh Audio streaming started', appointmentId);
-        this.appointmentId = appointmentId;
-      } else {
-        console.log('Audio recording resumed');
-      }
-    } else {
-      console.log('Audio streaming is already active');
+      this.appointmentId = appointmentId;
+      // if(appointmentId) {
+      //   console.log('>>> Fresh Audio streaming started', appointmentId);
+      //   this.appointmentId = appointmentId;
+      // } else {
+      //   console.log('>>>Audio recording resumed');
+      // }
+    } catch (err) {
+      console.error("Error in start streaming: ", err);
     }
+      
+    // } else {
+      // console.log('>>>Audio streaming is already active');
+    // }
   }
 
-  public stopStreaming(): void {
-    if (this.isStreaming) {
+  public async stopStreaming(isComingFromPause: boolean = false) {
+    if (this.isStreaming && !this.isPaused) {
       LiveAudioStream.stop();
-      this.isStreaming = false;
-      this.isPaused = false;
       this.stopDataCheckTimer();
       clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
-      if (this.currentChunk.length > 0) {
-        this.handleCompleteChunk(); // Handle any remaining audio data
+
+      if(isComingFromPause) {
+        // just pausing the recording, clear intervals and save the chunk
+        await this.handleCompleteChunk();
+        console.log(">>> Printing the recording object 1: ", this.currentRecordingObj);
+      } else {
+        // actually stop the recording as well
+        await this.handleCompleteChunk({ isLastChunk: true }); // Handle any remaining audio data
+        this.appointmentId = undefined;
+        console.log(">>> Printing the final recording object: ", this.currentRecordingObj);
+        this.currentRecordingObj = null;
+        this.isStreaming = false;
+        this.isPaused = false;
+        await this.listAllFiles();
+        await this.deleteAllFiles();
+        console.log('>>>Audio streaming stopped');
       }
-      this.appointmentId = '';
-      console.log('Audio streaming stopped');
     } else {
-      console.log('Audio streaming is not active');
+      console.log('>>>Audio streaming is not active');
     }
   }
 
-  public pauseStreaming(internal: boolean = false): void {
+  public async pauseStreaming(internal: boolean = false) {
     console.log(">>>> Inside pause streaming");
-    if (this.isStreaming && !this.isPaused) {
-      this.isPaused = true;
-      console.log(">>>> Inside pause streaming 2", this.pauseCallback);
+    if (this.isStreaming && !this.isPaused) { 
       if(internal && this.pauseCallback) {
         this.pauseCallback(true);
         clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
-        
       }
-      this.stopStreaming();
-      console.log('Audio streaming paused');
+      await this.stopStreaming(true);
+      this.isPaused = true;
+      console.log('>>>Audio streaming paused');
     } else if (!this.isStreaming) {
-      console.log('Cannot pause, audio streaming is not active');
+      console.log('>>>Cannot pause, audio streaming is not active');
     } else if (this.isPaused) {
-      console.log('Audio streaming is already paused');
+      console.log('>>>Audio streaming is already paused');
     }
   }
 
   public resumeStreaming(): void {
     if (this.isStreaming && this.isPaused) {
-      this.isPaused = false;
-      this.chunkStartTime = Date.now(); // Reset the chunk start time
+      this.chunkStartTime = new Date().toISOString(); // Reset the chunk start time
       this.lastDataReceivedTime = Date.now();
-      this.startStreaming('');
-      console.log('Audio streaming resumed');
+      this.startStreaming(this.appointmentId ?? '');
+      console.log('>>>Audio streaming resumed');
     } else if (!this.isStreaming) {
-      console.log('Cannot resume, audio streaming is not active');
+      console.log('>>>Cannot resume, audio streaming is not active');
     } else if (!this.isPaused) {
-      console.log('Audio streaming is not paused');
+      console.log('>>>Audio streaming is not paused');
     }
   }
+
+  public async listAllFiles() {
+    try {
+      const directoryPath = `${FileSystem.documentDirectory}recordings/`;
+      const appointmentDirectories = await FileSystem.readDirectoryAsync(directoryPath);
+  
+      for (const appointmentId of appointmentDirectories) {
+        const appointmentDirectoryPath = `${directoryPath}${appointmentId}/`;
+        const files = await FileSystem.readDirectoryAsync(appointmentDirectoryPath);
+  
+        console.log(`>>> Files in ${appointmentDirectoryPath}:`);
+        files.forEach((file) => {
+          console.log(">>>>", file);
+        });
+      }
+    } catch (error) {
+      console.error('Error reading files:', error);
+    }
+  };
+
+  private async deleteAllFiles() {
+    try {
+      const directoryPath = `${FileSystem.documentDirectory}recordings/`;
+      const appointmentDirectories = await FileSystem.readDirectoryAsync(directoryPath);
+  
+      for (const appointmentId of appointmentDirectories) {
+        const appointmentDirectoryPath = `${directoryPath}${appointmentId}/`;
+        const files = await FileSystem.readDirectoryAsync(appointmentDirectoryPath);
+  
+        for (const file of files) {
+          const filePath = `${appointmentDirectoryPath}${file}`;
+          await FileSystem.deleteAsync(filePath);
+          console.log(`>>>> Deleted file: ${filePath}`);
+        }
+  
+        // Optionally, you can also delete the appointment directory itself if you want
+        await FileSystem.deleteAsync(appointmentDirectoryPath, { idempotent: true });
+        console.log(`>>>> Deleted directory: ${appointmentDirectoryPath}`);
+      }
+  
+      console.log('All files and directories deleted.');
+    } catch (error) {
+      console.error('Error deleting files:', error);
+    }
+  };
+
 }
 
 export default LiveAudioManager;

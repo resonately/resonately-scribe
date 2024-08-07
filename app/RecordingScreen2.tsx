@@ -24,6 +24,8 @@ import TimelineCalendarScreen from './SampleTimeline';
 import Constants from 'expo-constants';
 import AppointmentManager from './AppointmentManager';
 import TrackPlayer, { State } from 'react-native-track-player';
+import DatabaseService from './DatabaseService';
+import { SQLiteProvider } from 'expo-sqlite';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -117,8 +119,15 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   const [iscreateMeetingSheetOpen, setIscreateMeetingSheetOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Appointment | null>(null);
   const refreshAppointmentsRef = useRef<() => void>(() => {});
+  const dbService = DatabaseService.getInstance();
 
+//   useEffect(() => {
+//     const initializeDb = async () => {
+//       await 
+//     };
 
+//     initializeDb();
+//   }, []);
 
   const theme = useTheme();
 
@@ -194,67 +203,69 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
 
 
   return (
-    <View style={styles.container}>
-  {!isConnected && (
-    <View style={styles.connectionBar}>
-      <Text style={styles.connectionText}>No Internet Connection</Text>
-    </View>
-  )}
-  {isMounted && (
-    <>
-      <CalendarAppointments 
-        setSelectedEvent={setSelectedEvent} 
-        setIsSheetOpen={setIscreateMeetingSheetOpen} 
-        setRefreshAppointments={setRefreshAppointments}
-      />
-      <CreateMeetingSheet
-        bottomSheetRef={createMeetingSheetRef}
-        isSheetOpen={iscreateMeetingSheetOpen}
-        setIsSheetOpen={setIscreateMeetingSheetOpen}
-        refreshAppointments={refreshAppointmentsRef.current}
-        event={selectedEvent} // Pass the selected event to the sheet
-        // handleJoinMeeting={startRecording}
-        // handleMuteToggle={handleMuteToggle}
-        // handleEndCall={stopRecording}
-        setAppointmentId={updateAppointmentId}
-        isMuted={isPaused}
-        isMeetingStarted={isRecording}
-        initialStartTime={initialStartTime}
-        navigation={navigation}
-        collapseSheet={() => {
-          setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
-        }}
-      />
-      {!isRecording && (
-        <FAB
-          style={{
-              position: 'absolute',
-              margin: 16,
-              right: 0,
-              bottom: 0,
-              backgroundColor: iscreateMeetingSheetOpen ? 'white' : theme.colors.primary, // Change background color conditionally
-              borderWidth: iscreateMeetingSheetOpen ? 1 : 0, // Add border for outlined style
-              borderColor: theme.colors.primary, // Use primary color for border
-          }}
-          icon={() => iscreateMeetingSheetOpen ? <MaterialIcons name="close" size={25} color={theme.colors.primary} />:<MaterialIcons name="add-circle-outline" size={25} color="white" />}
-          onPress={() => {
-              setSelectedEvent(null);
-              setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
-              if (!iscreateMeetingSheetOpen) {
-                  updateAppointmentId(null);
-                  analytics().logEvent('open_new_appointment_sheet');
-              } else {
-                  analytics().logEvent('close_new_appointment_sheet');
-              }
-          }}
-          color={iscreateMeetingSheetOpen ? theme.colors.primary : "white"} // Change icon color conditionally
-          label={iscreateMeetingSheetOpen ? "" : "New Appointment"}
-        />
-      )}
-    </>
-  )}
-</View>
-  );  
+		<SQLiteProvider databaseName='resonately' onInit={dbService.initDb}>
+			<View style={styles.container}>
+				{!isConnected && (
+					<View style={styles.connectionBar}>
+						<Text style={styles.connectionText}>No Internet Connection</Text>
+					</View>
+				)}
+				{isMounted && (
+					<>
+						<CalendarAppointments 
+							setSelectedEvent={setSelectedEvent} 
+							setIsSheetOpen={setIscreateMeetingSheetOpen} 
+							setRefreshAppointments={setRefreshAppointments}
+						/>
+						<CreateMeetingSheet
+							bottomSheetRef={createMeetingSheetRef}
+							isSheetOpen={iscreateMeetingSheetOpen}
+							setIsSheetOpen={setIscreateMeetingSheetOpen}
+							refreshAppointments={refreshAppointmentsRef.current}
+							event={selectedEvent} // Pass the selected event to the sheet
+							// handleJoinMeeting={startRecording}
+							// handleMuteToggle={handleMuteToggle}
+							// handleEndCall={stopRecording}
+							setAppointmentId={updateAppointmentId}
+							isMuted={isPaused}
+							isMeetingStarted={isRecording}
+							initialStartTime={initialStartTime}
+							navigation={navigation}
+							collapseSheet={() => {
+							setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
+							}}
+						/>
+						{!isRecording && (
+							<FAB
+							style={{
+								position: 'absolute',
+								margin: 16,
+								right: 0,
+								bottom: 0,
+								backgroundColor: iscreateMeetingSheetOpen ? 'white' : theme.colors.primary, // Change background color conditionally
+								borderWidth: iscreateMeetingSheetOpen ? 1 : 0, // Add border for outlined style
+								borderColor: theme.colors.primary, // Use primary color for border
+							}}
+							icon={() => iscreateMeetingSheetOpen ? <MaterialIcons name="close" size={25} color={theme.colors.primary} />:<MaterialIcons name="add-circle-outline" size={25} color="white" />}
+							onPress={() => {
+								setSelectedEvent(null);
+								setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
+								if (!iscreateMeetingSheetOpen) {
+									updateAppointmentId(null);
+									analytics().logEvent('open_new_appointment_sheet');
+								} else {
+									analytics().logEvent('close_new_appointment_sheet');
+								}
+							}}
+							color={iscreateMeetingSheetOpen ? theme.colors.primary : "white"} // Change icon color conditionally
+							label={iscreateMeetingSheetOpen ? "" : "New Appointment"}
+							/>
+						)}
+					</>
+				)}
+			</View>
+		</SQLiteProvider>
+  	);  
 };
 
 const styles = StyleSheet.create({

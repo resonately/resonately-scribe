@@ -9,6 +9,7 @@ import { useNavigation, RouteProp, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FontAwesome5 } from '@expo/vector-icons';
 import LiveAudioManager from './LiveAudioManager';
+import { useSQLiteContext } from 'expo-sqlite';
 
 interface Appointment {
     id: string;
@@ -34,6 +35,8 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const [paused, setPaused] = useState(isPaused);
     const animatedValue = useState(new Animated.Value(0))[0];
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); //
+    const db = useSQLiteContext();
+    console.log('sqlite version', db.execSync('SELECT sqlite_version()'));
 
     useEffect(() => {
         const initializeRecording = async () => {
@@ -41,7 +44,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 if (appointment) {
                     // AppointmentManager.uploadChunksPeriodically();
                     // await AppointmentManager.startRecording(appointment.id);
-                    LiveAudioManager.getInstance().startStreaming(appointment.id);
+                    LiveAudioManager.getInstance(appointment.id).startStreaming(appointment.id);
                     LiveAudioManager.getInstance().setPauseCallback(setPaused);
                 }
             } catch (error) {
