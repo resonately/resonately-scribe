@@ -182,7 +182,9 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 
   const formData = new FormData();
   formData.append('file', {
-    uri: uri
+    uri: uri,
+    name: uri.split('/').pop(), // Assuming the file name can be derived from the URI
+    type: 'audio/wav' // Change the type to the appropriate MIME type if different
   } as any);
 
   formData.append('appointmentId', recording.appointmentId);
@@ -217,6 +219,7 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
         console.log('Response body:', responseBody);
         return false;
       } else if (response.status >= 500 || !navigator.onLine) {
+        console.log(JSON.stringify(response));
         console.log('Server error or no network. Retrying...');
       } else {
         console.log('Failed to upload chunk. Status:', response.status);
