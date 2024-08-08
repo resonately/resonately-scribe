@@ -4,6 +4,8 @@ import * as FileSystem from 'expo-file-system';
 import uuid from 'react-native-uuid';
 import { Dispatch, SetStateAction } from 'react';
 import { Chunk, CHUNK_STATUS, Recording, RECORDING_STATUS } from './types';
+import DatabaseService from './DatabaseService';
+import { uploadChunkToServer } from './RecordUtils';
 
 const DATA_CHECK_INTERVAL: number = 5000; // 5 seconds
 const MAX_DATA_WAIT_TIME: number = 5000; // 10 seconds
@@ -22,6 +24,7 @@ class LiveAudioManager {
   private handleCompleteChunkInterval: NodeJS.Timeout | null = null;
   private appointmentId: string | undefined = undefined;
   private currentRecordingObj: Recording | null = null;
+  private tenantName: string = '';
 
   private constructor(appointmentId?: string) {
     // this.initializeAudioStream(appointmentId);
@@ -36,7 +39,11 @@ class LiveAudioManager {
 
   public setPauseCallback(callback: Dispatch<SetStateAction<boolean>>) {
     this.pauseCallback = callback;
-}
+  }
+
+  public setTenantName(tenantName: string) {
+    this.tenantName = tenantName;
+  }
 
   private initializeAudioStream(appointmentId?: string): void {
 
@@ -53,7 +60,6 @@ class LiveAudioManager {
     };
 
     LiveAudioStream.init(options);
-
 
     if(!this.isPaused) {
       this.appointmentId = appointmentId;
@@ -79,7 +85,7 @@ class LiveAudioManager {
 
     this.handleCompleteChunkInterval = setInterval(async () => {
       if (this.isStreaming && this.currentChunk.length > 0 && !this.isPaused) {
-        console.log(">>> calling handle complete chunk..... last recording object", this.currentRecordingObj);
+        console.log(">>> Inside Interval, calling handle complete chunk.....");
         await this.handleCompleteChunk();
       }
     }, 20000);
@@ -91,7 +97,7 @@ class LiveAudioManager {
   // checking for interruption
   private startDataCheckTimer(): void {
     this.dataCheckTimer = setInterval(async () => {
-      console.log("Inside data check interval", this.isPaused, this.isStreaming);
+      console.log(">>> Inside interruption check interval", this.isPaused, this.isStreaming);
       if (this.isStreaming && !this.isPaused) {
         const currentTime = Date.now();
         if (currentTime - this.lastDataReceivedTime > MAX_DATA_WAIT_TIME) {
@@ -167,57 +173,54 @@ class LiveAudioManager {
 
 
   public startStreaming(appointmentId: string): void {
-    // if (!this.isStreaming) {
-    try{
-      this.initializeAudioStream(appointmentId);
-      LiveAudioStream.start();
-      this.isStreaming = true;
-      this.isPaused = false;
-      this.currentChunk = Buffer.alloc(0);
-      this.chunkStartTime = new Date().toISOString();
-      this.chunkCounter = 0;
-      this.lastDataReceivedTime = Date.now();
-      this.appointmentId = appointmentId;
-      // if(appointmentId) {
-      //   console.log('>>> Fresh Audio streaming started', appointmentId);
-      //   this.appointmentId = appointmentId;
-      // } else {
-      //   console.log('>>>Audio recording resumed');
-      // }
-    } catch (err) {
-      console.error("Error in start streaming: ", err);
-    }
-      
-    // } else {
-      // console.log('>>>Audio streaming is already active');
-    // }
+	try{
+		this.initializeAudioStream(appointmentId);
+		LiveAudioStream.start();
+		this.isStreaming = true;
+		this.isPaused = false;
+		this.currentChunk = Buffer.alloc(0);
+		this.chunkStartTime = new Date().toISOString();
+		this.lastDataReceivedTime = Date.now();
+		this.appointmentId = appointmentId;
+	} catch (err) {
+		console.error("Error in start streaming: ", err);
+	}
   }
 
   public async stopStreaming(isComingFromPause: boolean = false) {
-    if (this.isStreaming && !this.isPaused) {
-      LiveAudioStream.stop();
-      this.stopDataCheckTimer();
-      clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
+	try{
 
-      if(isComingFromPause) {
-        // just pausing the recording, clear intervals and save the chunk
-        await this.handleCompleteChunk();
-        console.log(">>> Printing the recording object 1: ", this.currentRecordingObj);
-      } else {
-        // actually stop the recording as well
-        await this.handleCompleteChunk({ isLastChunk: true }); // Handle any remaining audio data
-        this.appointmentId = undefined;
-        console.log(">>> Printing the final recording object: ", this.currentRecordingObj);
-        this.currentRecordingObj = null;
-        this.isStreaming = false;
-        this.isPaused = false;
-        await this.listAllFiles();
-        await this.deleteAllFiles();
-        console.log('>>>Audio streaming stopped');
-      }
-    } else {
-      console.log('>>>Audio streaming is not active');
-    }
+		if (this.isStreaming && !this.isPaused) {
+			LiveAudioStream.stop();
+			this.stopDataCheckTimer();
+			clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
+	  
+			if(isComingFromPause) {
+			  // just pausing the recording, clear intervals and save the chunk
+			  await this.handleCompleteChunk();
+			  console.log(">>> Printing the recording object 1: ", this.currentRecordingObj);
+			} else {
+			  // actually stop the recording as well
+			  await this.handleCompleteChunk({ isLastChunk: true }); // Handle any remaining audio data
+			  this.appointmentId = undefined;
+			  console.log(">>> Printing the final recording object: ", this.currentRecordingObj);
+			  await DatabaseService.getInstance().insertRecording(this.currentRecordingObj as Recording);
+			  await this.uploadChunksToServer();
+			  this.currentRecordingObj = null;
+			  this.isStreaming = false;
+			  this.isPaused = false;
+			  this.tenantName = '';
+			  await this.listAllFiles();
+			  // await this.deleteAllFiles();
+			  console.log('>>>Audio streaming stopped');
+			}
+		} else {
+			console.error('>>>Audio streaming is not active');
+		}
+
+	} catch (err) {
+		console.error("Error in stop streaming: ", err);
+	}
   }
 
   public async pauseStreaming(internal: boolean = false) {
@@ -260,7 +263,7 @@ class LiveAudioManager {
         const files = await FileSystem.readDirectoryAsync(appointmentDirectoryPath);
   
         console.log(`>>> Files in ${appointmentDirectoryPath}:`);
-        files.forEach((file) => {
+        files?.forEach((file) => {
           console.log(">>>>", file);
         });
       }
@@ -269,7 +272,7 @@ class LiveAudioManager {
     }
   };
 
-  private async deleteAllFiles() {
+  public async deleteAllFiles() {
     try {
       const directoryPath = `${FileSystem.documentDirectory}recordings/`;
       const appointmentDirectories = await FileSystem.readDirectoryAsync(directoryPath);
@@ -295,43 +298,64 @@ class LiveAudioManager {
     }
   };
 
+  private async deleteAllChunksOfARecording(appointmentId: string) {
+	try {
+		const directoryPath = `${FileSystem.documentDirectory}recordings/`;
+		const appointmentDirectoryPath = `${directoryPath}${appointmentId}/`;
+		const files = await FileSystem.readDirectoryAsync(appointmentDirectoryPath);
+  
+        for (const file of files) {
+          const filePath = `${appointmentDirectoryPath}${file}`;
+          await FileSystem.deleteAsync(filePath);
+          console.log(`>>>> Deleted file: ${filePath}`);
+        }
+  
+        // Optionally, you can also delete the appointment directory itself if you want
+        await FileSystem.deleteAsync(appointmentDirectoryPath, { idempotent: true });
+        console.log(`>>>> Deleted directory: ${appointmentDirectoryPath}`);
+
+    } catch (error) {
+      console.error('Error deleting files:', error);
+    }
+  };
+
+  public async uploadChunksToServer() {
+
+	try {
+		// get all the recordings from sqlite DB
+		const allRecordingsInLocalDB = await DatabaseService.getInstance().getRecordings();
+
+		console.log(">>> all recordings in local db: ", allRecordingsInLocalDB);
+	
+		// loop through all recording and call RecordUtils.uploadRecording(chunk, recordingId, tenantName) for each recording
+		for (const recording of allRecordingsInLocalDB) {
+			console.log(">>> recording object before chunks are uploaded: ", recording);
+			for (const chunk of recording.chunks) {
+				if(chunk.status === CHUNK_STATUS.Created) {
+						// upload the chunk
+						const success = await uploadChunkToServer(chunk, recording, this.tenantName);
+						if(success) {
+						chunk.status = CHUNK_STATUS.Uploaded;
+						// update the local sqlite db here as well, since we are not deleting the chunk as of now.
+						await DatabaseService.getInstance().updateChunk(chunk, recording.id!);
+						}
+				}
+			}
+			console.log(">>> recording object after chunks are uploaded: ", recording);
+			let isAllChunksUploaded = recording.chunks.every((chunk) => chunk.status === CHUNK_STATUS.Uploaded);
+			console.log(">>> isAllChunksUploaded: ", isAllChunksUploaded);
+			if(isAllChunksUploaded) {
+				// delete the recording 
+				await DatabaseService.getInstance().deleteRecording(recording.id!); // delete recording from sqlite
+				this.deleteAllChunksOfARecording(recording.appointmentId); // delete files from local filesystem
+			}
+		}
+		
+	} catch (error) {
+		console.error('Error uploading chunks to server:', error);
+	}
+  }
+
 }
 
 export default LiveAudioManager;
-
-
-
-
-/**
- * 1. we have the recording chunk created in local system, all chunks of a particular recording will be saved in that rec directory
- * 
- * 2. We have to store this file path against that recordingId/AppointmentId in the sqlite db
- * 
- * 3. The data would look something like this
- *  
- * {
- *  "recordingId": "894c63d1-aafe-4081-8f4f-db502acfdd7e",
- *  "appointmentId": 23390,
- *  "recordingStartDate": "2024-08-03T14:11:53.520Z",
- *  "recordingEndDate": "2024-08-03T14:11:59.249Z", // same as last chunk end time
- *  "status": "In Progress", // it can be one of "Completed", "In Progress"
- *  "chunks": [
- *   {
-       "position": 0, // position of the chunk, ends with total chunks-1
-       "isLastChunk": true,
-       "uri": "file:///var/mobile/Containers/Data/Application/5062D4E2-6AC9-48BC-BC72-81BA166BC7CA/Documents/recordings/rec_894c63d1-aafe-4081-8f4f-db502acfdd7e/894c63d1-aafe-4081-8f4f-db502acfdd7e_1722694319275.m4a",
-       "startTime": "2024-08-03T14:11:53.520Z",
-       "endTime": "2024-08-03T14:11:59.277Z",
-       "status": "created", // can be one of "uploaded" or "created"
-     }
-    ],
-    "chunkCounter": 1, // chunk.length
-}
- * 
- * 4. Once this is in SQLITE DB, we would find appropriate places to upload these chunks to the server
- * 
- * 5. Make sure every recording has a endTime and isLastChunk property present in the chunk data
- * 
- * 6. Once for a recording, all the chunks are uploaded to the server, we would delete the recording
- *
- * */

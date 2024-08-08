@@ -2,11 +2,10 @@
 import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { Audio } from 'expo-av';
-import { Chunk } from './RecordingScreen';
-import { Recording } from './RecordingScreen2';
 import Constants from 'expo-constants';
+import { Recording, Chunk } from './types';
 
-const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
+const API_BASE_URL = 'https://api.rsn8ly.xyz';
 
 export const getRecordingUri = async (recording: Audio.Recording): Promise<string | null> => {
   return recording.getURI();
@@ -155,24 +154,20 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
 export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, tenantName: string): Promise<boolean> => {
   const { position, startTime, endTime, uri } = chunk;
 
-  console.log('Recording ID:', JSON.stringify(recording));
-  console.log('Chunk Start Time:', startTime);
-  console.log('Chunk End Time:', endTime);
-  console.log('Chunk URI:', uri);
+  console.log(">>>> Inside uploadchunktoserver: ", chunk, recording, tenantName);
 
   const fileExists = await FileSystem.getInfoAsync(uri);
 
   if (!fileExists.exists) {
-    console.log('File not found locally.');
+    console.log('>>>> File not found locally.');
     return true;
   }
 
   const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
   const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
 
-  console.log('Session Cookie:', sessionCookie);
-  console.log('User Email:', userEmail);
-  console.log('Tenant Name:', tenantName);
+  console.log('>>> Session Cookie:', sessionCookie);
+  console.log('>>> User Email:', userEmail);
 
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
@@ -187,15 +182,16 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 
   const formData = new FormData();
   formData.append('file', {
-    uri: uri,
-    type: 'audio/m4a',
-    name: 'audio_chunk.m4a',
+    uri: uri
   } as any);
 
-  formData.append('recording', JSON.stringify(recording));
+  formData.append('appointmentId', recording.appointmentId);
+  formData.append('localRecordingId', recording.id!);
+  formData.append('chunkType', chunk.isLastChunk ? 'last' : 'intermediate');
   formData.append('position', position.toString());
   formData.append('chunkStartTime', new Date(startTime).toUTCString());
   formData.append('chunkEndTime', new Date(endTime).toUTCString());
+
 
   const MAX_RETRIES = 5;
   const RETRY_DELAY = 2000; // 2 seconds
@@ -243,11 +239,11 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string): Promise<any> => {
   const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
 
-  console.log('loadAppointments');
-  console.log(tenantName);
-  console.log(startDate);
-  console.log(endDate);
-  console.log(API_BASE_URL);
+  // console.log('loadAppointments');
+  // console.log(tenantName);
+  // console.log(startDate);
+  // console.log(endDate);
+  // console.log(API_BASE_URL);
 
   if (!sessionCookie) {
     console.error('Session cookie not found.');
@@ -260,7 +256,7 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
     'Cookie': sessionCookie,
   };
 
-  console.log(headers);
+  // console.log(headers);
 
   try {
     const response = await fetch(`${API_BASE_URL}/server/v1/appointments?startDate=${startDate}&endDate=${endDate}`, {
@@ -271,12 +267,12 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
     if (response.ok) {
       const data = await response.json();
       console.log('Appointments fetched successfully.');
-      console.log(API_BASE_URL);
+      // console.log(API_BASE_URL);
       return data.appointments;
     } else {
       console.error('Failed to fetch appointments. Status:', response.status);
       const responseBody = await response.text();
-      console.error('Response body:', responseBody);
+      // console.error('Response body:', responseBody);
       return null;
     }
   } catch (error) {

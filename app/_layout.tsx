@@ -17,6 +17,25 @@ import { Camera } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system';
+import { SQLiteProvider } from 'expo-sqlite';
+import LiveAudioManager from './LiveAudioManager';
+
+const loadDatabase = async () => {
+  const dbName = "mySQLite.db";
+  const dbAsset = require('../assets/mySQLiteDB.db');
+
+  const dbUri =  Asset.fromModule(dbAsset).uri;
+  const dbFilePath = `${FileSystem.documentDirectory}SQLite/${dbName}`;
+
+  const fileInfo = await FileSystem.getInfoAsync(dbFilePath);
+  if(!fileInfo) {
+    await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}SQLite/`, {intermediates: true});
+    await FileSystem.downloadAsync(dbUri, dbFilePath);
+  }
+  
+};
 
 export type RootStackParamList = {
   PermissionScreen: undefined;
@@ -38,7 +57,7 @@ const RootLayoutComponent = () => {
 
   useEffect(() => {
     if (tenantDetails && tenantDetails.tenantName) {
-      AppointmentManager.setTenantName(tenantDetails.tenantName);
+      LiveAudioManager.getInstance().setTenantName(tenantDetails.tenantName);
     }
   }, [tenantDetails]);
 
@@ -107,12 +126,23 @@ const RootLayoutComponent = () => {
   );
 };
 
+
 const RootLayout = () => {
+
+  useEffect(() => {
+    loadDatabase()
+      .then(() => {
+        console.log('Database loaded');
+      }).catch((err) => console.error('Error loading database:', err));
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <PaperProvider theme={theme}>
         <AuthProvider>
-          <RootLayoutComponent />
+          <SQLiteProvider databaseName='mySQLite.db'>
+            <RootLayoutComponent />
+          </SQLiteProvider>
         </AuthProvider>
       </PaperProvider>
     </GestureHandlerRootView>
