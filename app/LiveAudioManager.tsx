@@ -168,14 +168,20 @@ class LiveAudioManager {
       await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}recordings/${this.appointmentId}`, { intermediates: true });
       await FileSystem.writeAsStringAsync(chunkFilePath, this.currentChunk.toString('base64'), { encoding: FileSystem.EncodingType.Base64 });
 
-      // Reset for the next chunk
-      this.currentChunk = Buffer.alloc(0);
-      const newChunkObj = this.createChunk({ chunkCounter: this.chunkCounter, isLastChunk , startTime: this.chunkStartTime, uri: chunkFilePath });
-      this.updateCurrentRecording(newChunkObj, this.chunkCounter, isLastChunk);
-      await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
-      this.chunkCounter++;
+      const fileDetails = await FileSystem.getInfoAsync(chunkFilePath);
+      if(fileDetails.exists){
+        if(fileDetails.size > 0) {
 
-      // create a new chunk and increment chunk counter and update this.currentRecordingObj
+          // Reset for the next chunk
+          this.currentChunk = Buffer.alloc(0);
+          const newChunkObj = this.createChunk({ chunkCounter: this.chunkCounter, isLastChunk , startTime: this.chunkStartTime, uri: chunkFilePath });
+          this.updateCurrentRecording(newChunkObj, this.chunkCounter, isLastChunk);
+          // create a new chunk and increment chunk counter and update this.currentRecordingObj
+          await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
+          this.chunkCounter++;
+
+        }
+      }
 
     } catch (error) {
       console.error('Error saving audio chunk to local file:', error);
@@ -216,12 +222,11 @@ class LiveAudioManager {
           await this.handleCompleteChunk({ isLastChunk: true }); 
           this.appointmentId = undefined;
           console.log(">>> Printing the final recording object: ", this.currentRecordingObj);
-          await this.uploadChunksToServer();
           this.currentRecordingObj = null;
           this.isStreaming = false;
           this.isPaused = false;
           this.tenantName = '';
-          console.log('>>>Audio streaming stopped');
+          console.log('>>>Audio streaming stopped, uploading chunks now');
           return true;
           // await this.listAllFiles();
           // await this.deleteAllFiles();
@@ -341,6 +346,9 @@ class LiveAudioManager {
 		const allRecordingsInLocalDB = await DatabaseService.getInstance().getRecordings();
 
 		console.log(">>> all recordings in local db: ", allRecordingsInLocalDB);
+    if(!allRecordingsInLocalDB || allRecordingsInLocalDB.length === 0 || this.isStreaming) {
+      return;
+    }
 	
 		// loop through all recording and call RecordUtils.uploadRecording(chunk, recordingId, tenantName) for each recording
 		for (const recording of allRecordingsInLocalDB) {

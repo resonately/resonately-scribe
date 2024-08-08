@@ -27,7 +27,7 @@ type Props = {
   navigation: RecordingScreenNavigationProp;
 };
 
-const CHUNK_UPLOAD_FREQUENCY = 10 * 1000; // 10 seconds
+const CHUNK_UPLOAD_FREQUENCY = 30 * 1000; // 30 seconds
 const DELETE_RECORDINGS_RUN_REQUENCY = 60 * 1000; // every minute
 const MAX_RECORDINGS_AGE = 2 * 24 * 60 * 60 * 1000; // 2 days
 const MAX_DIR_AGE = 2 * 24 * 60 * 60 * 1000; // 10 days
@@ -81,7 +81,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   
   useEffect(() => {
     uploadIntervalRef.current = setInterval(async () => {
-        AppointmentManager.uploadChunksPeriodically();
+        LiveAudioManager.getInstance().uploadChunksToServer();
     }, CHUNK_UPLOAD_FREQUENCY); // 10 seconds interval
     
 
@@ -137,14 +137,13 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   useEffect(() => {
 	  DatabaseService.getInstance().initDb();
     LiveAudioManager.getInstance().setTenantName(tenantName);
-    // DatabaseService.getInstance().deleteRecording('af4ea3ad-561a-4e7d-956f-926cf95ad9cf');
+    // DatabaseService.getInstance().deleteRecording('5ff3873d-b5f2-4134-87a6-ea0e43dcc290');
     // LiveAudioManager.getInstance().deleteAllFiles();
-    setTimeout(() => {
-    LiveAudioManager.getInstance().uploadChunksToServer();
-    }, 500);
-	  setTimeout(() => {
-		  getData();
-	  }, 5000);
+
+    // for testing
+	  // setTimeout(() => {
+		//   getData();
+	  // }, 5000);
   }, []);
 
   return (
