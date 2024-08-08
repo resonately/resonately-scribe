@@ -187,6 +187,9 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
     type: 'audio/wav' // Change the type to the appropriate MIME type if different
   } as any);
 
+  console.log(">>> uploading recording:", recording);
+  console.log(">>> uploading chunk:", chunk);
+
   formData.append('appointmentId', recording.appointmentId);
   formData.append('localRecordingId', recording.id!);
   formData.append('chunkType', chunk.isLastChunk ? 'last' : 'intermediate');

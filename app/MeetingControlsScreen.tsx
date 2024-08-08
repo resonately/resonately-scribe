@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, Animated, Easing, AppState, AppStateStatus } from 'react-native';
+import { View, StyleSheet, Text, Animated, Easing, AppState, AppStateStatus, Alert } from 'react-native';
 import { FAB, useTheme } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 // import AppointmentManager from './AppointmentManager';
@@ -140,20 +140,23 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     };
 
     const handleEndMeeting = async () => {
-        LiveAudioManager.getInstance().stopStreaming();
-        // await AppointmentManager.stopRecording();
-        console.log('End Meeting button pressed');
-        if (collapseSheet) {
-            collapseSheet();
-        }
-        navigation.navigate('DrawerNavigator');
+        const isRecordingStopped = await LiveAudioManager.getInstance().stopStreaming();
+        if(isRecordingStopped) {
+            console.log('End Meeting button pressed');
+            if (collapseSheet) {
+                collapseSheet();
+            }
+            navigation.navigate('DrawerNavigator');
 
-        // Log the event for ending the meeting
-        analytics().logEvent('end_meeting', {
-            component: 'MeetingControlsScreen',
-            appointmentId: appointment?.id,
-            status: 'ended'
-        });
+            // Log the event for ending the meeting
+            analytics().logEvent('end_meeting', {
+                component: 'MeetingControlsScreen',
+                appointmentId: appointment?.id,
+                status: 'ended'
+            });
+        } else {
+            Alert.alert('Please resume the recording and try again!');
+        }
     };
 
     console.log("value of paused is: ", paused);

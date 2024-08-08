@@ -56,8 +56,13 @@ class DatabaseService {
    
   };
 
+  public async endRecordingQuery(recording: Recording, chunk: Chunk) {
+
+
+  }
+
   // CRUD operations for Recording
-  public insertRecording = async (recording: Recording): Promise<void> => {
+  public createRecording = async (recording: Recording): Promise<void> => {
     const insertRecordingQuery = `
       INSERT INTO recordings (id, startDate, appointmentId, endDate, status, chunkCounter)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -73,12 +78,6 @@ class DatabaseService {
         recording.status,
         recording.chunkCounter,
       ]);
-  
-      for (const chunk of recording.chunks) {
-          if(recording?.id){
-              await this.insertChunk(recording?.id, chunk);
-          }
-      }
       
     } catch (err) {
       console.error("Error inserting recording:", err);
@@ -128,14 +127,40 @@ class DatabaseService {
       recording.chunkCounter,
       recording.id!,
     ]);
-
-    await this.deleteChunksByRecordingId(recording.id);
-        for (const chunk of recording.chunks) {
-            if(recording.id) {
-                await this.insertChunk(recording.id, chunk);
-            }
-        }
   };
+
+  public updateRecordingendDate = async (recording: Recording, endDate: string): Promise<void> => {
+    const updateRecordingQuery = `
+      UPDATE recordings SET endDate = ?
+      WHERE id = ?
+    `;
+    await this.db?.runAsync(updateRecordingQuery, [
+      endDate,
+      recording.id!,
+    ]);
+  }
+
+  public updateRecordingStatus = async (recording: Recording): Promise<void> => {
+    const updateRecordingQuery = `
+      UPDATE recordings SET status = ?
+      WHERE id = ?
+    `;
+    await this.db?.runAsync(updateRecordingQuery, [
+      recording.status,
+      recording.id!,
+    ]);
+  };
+
+  public updateRecordingChunkCounter = async (recording: Recording, lastChunkCounter: number): Promise<void> => {
+    const updateRecordingQuery = `
+      UPDATE recordings SET chunkCounter = ?
+      WHERE id = ?
+    `;
+    await this.db?.runAsync(updateRecordingQuery, [
+      lastChunkCounter+1,
+      recording.id!,
+    ]);
+  }
 
   public deleteRecording = async (id: string): Promise<void> => {
     try {
@@ -148,7 +173,7 @@ class DatabaseService {
   };
 
   // CRUD operations for Chunk
-  private insertChunk = async (recordingId: string, chunk: Chunk): Promise<void> => {
+  public insertChunk = async (recordingId: string, chunk: Chunk): Promise<void> => {
     const insertChunkQuery = `
       INSERT INTO chunks (recordingId, position, isLastChunk, uri, startTime, endTime, status)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -175,18 +200,20 @@ class DatabaseService {
         startTime: chunk.startTime,
         endTime: chunk.endTime,
         status: chunk.status,
+        id: chunk.id,
       }));
     } else return [];
     
   };
 
-  public updateChunk = async (chunk: Chunk, recordingId: string): Promise<void> => {
+  public updateChunkStatus = async (chunk: Chunk, recordingId: string): Promise<void> => {
     const updateChunkQuery = `
       UPDATE chunks SET status = ?
-      WHERE id = ?
+      WHERE id = ? AND recordingId = ?
     `;
     await this.db?.runAsync(updateChunkQuery, [
       chunk.status,
+      chunk.id!,
       recordingId,
     ]);
   };

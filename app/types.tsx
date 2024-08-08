@@ -9,6 +9,7 @@ export enum RECORDING_STATUS {
     Completed = 'Completed'
 } 
 export interface Chunk {
+    id?: string;
     position: number;
     isLastChunk: boolean;
     uri: string;

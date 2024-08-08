@@ -45,7 +45,7 @@ class LiveAudioManager {
     this.tenantName = tenantName;
   }
 
-  private initializeAudioStream(appointmentId?: string): void {
+  private async initializeAudioStream(appointmentId?: string): Promise<void> {
 
     if(!appointmentId) {
       throw new Error("Appointment Id missing");
@@ -72,6 +72,7 @@ class LiveAudioManager {
         chunks: [],
         chunkCounter: 0,
       }
+      await DatabaseService.getInstance().createRecording(this.currentRecordingObj);
     }
 
     LiveAudioStream.on('data', (data: string) => {
@@ -145,7 +146,17 @@ class LiveAudioManager {
         chunks: [...this.currentRecordingObj?.chunks, chunk],
       }
     }
-   
+  }
+
+  private async updateLocalDB(chunk: Chunk, currentChunkPosition: number, isLastChunk: boolean) {
+    if(this.currentRecordingObj) {
+      await DatabaseService.getInstance().updateRecordingChunkCounter(this.currentRecordingObj, currentChunkPosition);
+      await DatabaseService.getInstance().insertChunk(this.currentRecordingObj.id!, chunk);
+
+      if(isLastChunk) {
+        await DatabaseService.getInstance().updateRecordingendDate(this.currentRecordingObj, new Date().toISOString());
+      }
+    }
   }
 
   private async handleCompleteChunk({isLastChunk}: { isLastChunk: boolean } = {isLastChunk: false}): Promise<void> {
@@ -160,8 +171,8 @@ class LiveAudioManager {
       // Reset for the next chunk
       this.currentChunk = Buffer.alloc(0);
       const newChunkObj = this.createChunk({ chunkCounter: this.chunkCounter, isLastChunk , startTime: this.chunkStartTime, uri: chunkFilePath });
-      console.log(">>>> newChunkObject: ", newChunkObj);
       this.updateCurrentRecording(newChunkObj, this.chunkCounter, isLastChunk);
+      await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
       this.chunkCounter++;
 
       // create a new chunk and increment chunk counter and update this.currentRecordingObj
@@ -173,54 +184,57 @@ class LiveAudioManager {
 
 
   public startStreaming(appointmentId: string): void {
-	try{
-		this.initializeAudioStream(appointmentId);
-		LiveAudioStream.start();
-		this.isStreaming = true;
-		this.isPaused = false;
-		this.currentChunk = Buffer.alloc(0);
-		this.chunkStartTime = new Date().toISOString();
-		this.lastDataReceivedTime = Date.now();
-		this.appointmentId = appointmentId;
-	} catch (err) {
-		console.error("Error in start streaming: ", err);
-	}
+    try{
+      this.initializeAudioStream(appointmentId);
+      LiveAudioStream.start();
+      this.isStreaming = true;
+      this.isPaused = false;
+      this.currentChunk = Buffer.alloc(0);
+      this.chunkStartTime = new Date().toISOString();
+      this.lastDataReceivedTime = Date.now();
+      this.appointmentId = appointmentId;
+    } catch (err) {
+      console.error("Error in start streaming: ", err);
+    }
   }
 
-  public async stopStreaming(isComingFromPause: boolean = false) {
-	try{
+  public async stopStreaming(isComingFromPause: boolean = false): Promise<boolean> {
+    try{
 
-		if (this.isStreaming && !this.isPaused) {
-			LiveAudioStream.stop();
-			this.stopDataCheckTimer();
-			clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
-	  
-			if(isComingFromPause) {
-			  // just pausing the recording, clear intervals and save the chunk
-			  await this.handleCompleteChunk();
-			  console.log(">>> Printing the recording object 1: ", this.currentRecordingObj);
-			} else {
-			  // actually stop the recording as well
-			  await this.handleCompleteChunk({ isLastChunk: true }); // Handle any remaining audio data
-			  this.appointmentId = undefined;
-			  console.log(">>> Printing the final recording object: ", this.currentRecordingObj);
-			  await DatabaseService.getInstance().insertRecording(this.currentRecordingObj as Recording);
-			  await this.uploadChunksToServer();
-			  this.currentRecordingObj = null;
-			  this.isStreaming = false;
-			  this.isPaused = false;
-			  this.tenantName = '';
-			  await this.listAllFiles();
-			  // await this.deleteAllFiles();
-			  console.log('>>>Audio streaming stopped');
-			}
-		} else {
-			console.error('>>>Audio streaming is not active');
-		}
+      if (this.isStreaming && !this.isPaused) {
+        LiveAudioStream.stop();
+        this.stopDataCheckTimer();
+        clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
+      
+        if(isComingFromPause) {
+          // just pausing the recording, clear intervals and save the chunk
+          await this.handleCompleteChunk();
+          console.log(">>> Printing the recording object 1: ", this.currentRecordingObj);
+          return false;
+        } else {
+          // actually stop the recording, create the chunk, insert chunk in localDB, updateChunkCounter
+          await this.handleCompleteChunk({ isLastChunk: true }); 
+          this.appointmentId = undefined;
+          console.log(">>> Printing the final recording object: ", this.currentRecordingObj);
+          await this.uploadChunksToServer();
+          this.currentRecordingObj = null;
+          this.isStreaming = false;
+          this.isPaused = false;
+          this.tenantName = '';
+          console.log('>>>Audio streaming stopped');
+          return true;
+          // await this.listAllFiles();
+          // await this.deleteAllFiles();
+        }
+      } else {
+        console.error('>>>Audio streaming is not active');
+        return false;
+      }
+    } catch (err) {
+      console.error("Error in stop streaming: ", err);
 
-	} catch (err) {
-		console.error("Error in stop streaming: ", err);
-	}
+      return false;
+    }
   }
 
   public async pauseStreaming(internal: boolean = false) {
@@ -267,6 +281,7 @@ class LiveAudioManager {
           console.log(">>>>", file);
         });
       }
+      console.log(">>>> listed all the files present");
     } catch (error) {
       console.error('Error reading files:', error);
     }
@@ -335,9 +350,9 @@ class LiveAudioManager {
 						// upload the chunk
 						const success = await uploadChunkToServer(chunk, recording, this.tenantName);
 						if(success) {
-						chunk.status = CHUNK_STATUS.Uploaded;
-						// update the local sqlite db here as well, since we are not deleting the chunk as of now.
-						await DatabaseService.getInstance().updateChunk(chunk, recording.id!);
+						  chunk.status = CHUNK_STATUS.Uploaded;
+						  // update the local sqlite db here as well, since we are not deleting the chunk as of now.
+						  await DatabaseService.getInstance().updateChunkStatus(chunk, recording.id!);
 						}
 				}
 			}

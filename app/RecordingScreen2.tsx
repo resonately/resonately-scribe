@@ -137,8 +137,11 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   useEffect(() => {
 	  DatabaseService.getInstance().initDb();
     LiveAudioManager.getInstance().setTenantName(tenantName);
-    // DatabaseService.getInstance().deleteRecording('b13ceb2a-1106-4329-8275-f6108cf36407');
+    // DatabaseService.getInstance().deleteRecording('af4ea3ad-561a-4e7d-956f-926cf95ad9cf');
     // LiveAudioManager.getInstance().deleteAllFiles();
+    setTimeout(() => {
+    LiveAudioManager.getInstance().uploadChunksToServer();
+    }, 500);
 	  setTimeout(() => {
 		  getData();
 	  }, 5000);
