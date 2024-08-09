@@ -81,7 +81,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   
   useEffect(() => {
     uploadIntervalRef.current = setInterval(async () => {
-        LiveAudioManager.getInstance().uploadChunksToServer();
+        LiveAudioManager.getInstance().uploadChunksToServer(tenantName);
     }, CHUNK_UPLOAD_FREQUENCY); // 10 seconds interval
     
 

@@ -10,6 +10,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FontAwesome5 } from '@expo/vector-icons';
 import LiveAudioManager from './LiveAudioManager';
 import { useSQLiteContext } from 'expo-sqlite';
+import { useAuth } from './AuthContext';
 
 interface Appointment {
     id: string;
@@ -36,6 +37,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const animatedValue = useState(new Animated.Value(0))[0];
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); //
     const db = useSQLiteContext();
+    const { tenantName } = useAuth().tenantDetails;
     console.log('sqlite version', db.execSync('SELECT sqlite_version()'));
 
     useEffect(() => {
@@ -147,7 +149,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 collapseSheet();
             }
             navigation.navigate('DrawerNavigator');
-            await LiveAudioManager.getInstance().uploadChunksToServer();
+            await LiveAudioManager.getInstance().uploadChunksToServer(tenantName);
 
             // Log the event for ending the meeting
             analytics().logEvent('end_meeting', {

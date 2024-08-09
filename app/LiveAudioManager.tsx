@@ -295,6 +295,11 @@ class LiveAudioManager {
   public async deleteAllFiles() {
     try {
       const directoryPath = `${FileSystem.documentDirectory}recordings/`;
+      const recordingsDirectoryExists = await FileSystem.getInfoAsync(directoryPath);
+      if (!recordingsDirectoryExists.exists) {
+        console.log('No recordings directory found.');
+        return;
+      }
       const appointmentDirectories = await FileSystem.readDirectoryAsync(directoryPath);
   
       for (const appointmentId of appointmentDirectories) {
@@ -303,15 +308,25 @@ class LiveAudioManager {
   
         for (const file of files) {
           const filePath = `${appointmentDirectoryPath}${file}`;
-          await FileSystem.deleteAsync(filePath);
-          console.log(`>>>> Deleted file: ${filePath}`);
+          const fileExists = await FileSystem.getInfoAsync(filePath);
+          if (fileExists.exists) {
+            await FileSystem.deleteAsync(filePath);
+            console.log(`Deleted file: ${filePath}`);
+          } else {
+            console.log(`File not found: ${filePath}`);
+          }
         }
   
         // Optionally, you can also delete the appointment directory itself if you want
-        await FileSystem.deleteAsync(appointmentDirectoryPath, { idempotent: true });
-        console.log(`>>>> Deleted directory: ${appointmentDirectoryPath}`);
+        // Check again before deleting the directory itself
+        const updatedAppointmentDirectoryExists = await FileSystem.getInfoAsync(appointmentDirectoryPath);
+        if (updatedAppointmentDirectoryExists.exists) {
+          await FileSystem.deleteAsync(appointmentDirectoryPath, { idempotent: true });
+          console.log(`Deleted directory: ${appointmentDirectoryPath}`);
+        } else {
+          console.log(`Directory already deleted or not found: ${appointmentDirectoryPath}`);
+        }
       }
-  
       console.log('All files and directories deleted.');
     } catch (error) {
       console.error('Error deleting files:', error);
@@ -339,7 +354,7 @@ class LiveAudioManager {
     }
   };
 
-  public async uploadChunksToServer() {
+  public async uploadChunksToServer(tenantName: string) {
 
 	try {
 		// get all the recordings from sqlite DB
@@ -356,7 +371,7 @@ class LiveAudioManager {
 			for (const chunk of recording.chunks) {
 				if(chunk.status === CHUNK_STATUS.Created) {
 						// upload the chunk
-						const success = await uploadChunkToServer(chunk, recording, this.tenantName);
+						const success = await uploadChunkToServer(chunk, recording, tenantName);
 						if(success) {
 						  chunk.status = CHUNK_STATUS.Uploaded;
 						  // update the local sqlite db here as well, since we are not deleting the chunk as of now.
