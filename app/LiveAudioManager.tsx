@@ -220,6 +220,7 @@ class LiveAudioManager {
         } else {
           // actually stop the recording, create the chunk, insert chunk in localDB, updateChunkCounter
           await this.handleCompleteChunk({ isLastChunk: true }); 
+          this.chunkCounter=0;
           this.appointmentId = undefined;
           console.log(">>> Printing the final recording object: ", this.currentRecordingObj);
           this.currentRecordingObj = null;
