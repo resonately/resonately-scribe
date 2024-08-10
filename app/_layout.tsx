@@ -21,6 +21,7 @@ import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import { SQLiteProvider } from 'expo-sqlite';
 import LiveAudioManager from './LiveAudioManager';
+import Bugsnag from '@bugsnag/expo';
 
 const loadDatabase = async () => {
   const dbName = "mySQLite.db";
@@ -130,6 +131,7 @@ const RootLayoutComponent = () => {
 const RootLayout = () => {
 
   useEffect(() => {
+    Bugsnag.start();
     loadDatabase()
       .then(() => {
         console.log('Database loaded');

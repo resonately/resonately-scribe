@@ -64,6 +64,9 @@
       "router": {
         "origin": false
       },
+      "bugsnag": {
+        "apiKey": "5c806672283b204b338eb26c88fa3534"
+      },
       "eas": {
         "projectId": "b65b67c1-3ab7-4ebe-9482-76c8c9f064c6"
       }
