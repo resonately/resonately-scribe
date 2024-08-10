@@ -56,7 +56,12 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
 
   const theme = useTheme();
   const db = useSQLiteContext();
-  useDrizzleStudio(db);
+
+
+  function DrizzleStudio() {
+    useDrizzleStudio(db)
+    return null
+  }
 
   const { tenantName } = useAuth().tenantDetails;
 
@@ -148,7 +153,9 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   }, []);
 
   return (
-		<View style={styles.container}>
+      <>
+        {__DEV__ && <DrizzleStudio />}
+        <View style={styles.container}>
 			{!isConnected && (
 				<View style={styles.connectionBar}>
 					<Text style={styles.connectionText}>No Internet Connection</Text>
@@ -207,8 +214,9 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
 					)}
 				</>
 			)}
-		</View>
-  	);  
+		    </View>
+      </>
+    );  
 };
 
 const styles = StyleSheet.create({
