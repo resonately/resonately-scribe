@@ -149,7 +149,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 collapseSheet();
             }
             navigation.navigate('DrawerNavigator');
-            await LiveAudioManager.getInstance().uploadChunksToServer(tenantName);
+            await LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
 
             // Log the event for ending the meeting
             analytics().logEvent('end_meeting', {

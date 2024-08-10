@@ -27,7 +27,7 @@ type Props = {
   navigation: RecordingScreenNavigationProp;
 };
 
-const CHUNK_UPLOAD_FREQUENCY = 30 * 1000; // 30 seconds
+const CHUNK_UPLOAD_FREQUENCY = 5 * 60 * 1000; // 5 minutes
 const DELETE_RECORDINGS_RUN_REQUENCY = 60 * 1000; // every minute
 const MAX_RECORDINGS_AGE = 2 * 24 * 60 * 60 * 1000; // 2 days
 const MAX_DIR_AGE = 2 * 24 * 60 * 60 * 1000; // 10 days
@@ -81,8 +81,9 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   
   useEffect(() => {
     uploadIntervalRef.current = setInterval(async () => {
-        LiveAudioManager.getInstance().uploadChunksToServer(tenantName);
-    }, CHUNK_UPLOAD_FREQUENCY); // 10 seconds interval
+        LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
+        LiveAudioManager.getInstance().handleStaleRecordings(tenantName);
+    }, CHUNK_UPLOAD_FREQUENCY);
     
 
     return () => {

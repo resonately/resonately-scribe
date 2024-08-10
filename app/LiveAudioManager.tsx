@@ -6,10 +6,13 @@ import { Dispatch, SetStateAction } from 'react';
 import { Chunk, CHUNK_STATUS, Recording, RECORDING_STATUS } from './types';
 import DatabaseService from './DatabaseService';
 import { uploadChunkToServer } from './RecordUtils';
+import * as TaskManager from 'expo-task-manager';
+import * as BackgroundFetch from 'expo-background-fetch';
 
 const DATA_CHECK_INTERVAL: number = 5000; // 5 seconds
 const MAX_DATA_WAIT_TIME: number = 5000; // 10 seconds
 const CHUNK_DURATION: number = 30000; // 30 seconds in milliseconds
+const BACKGROUND_UPLOAD_TASK = 'BACKGROUND_UPLOAD_TASK';
 
 class LiveAudioManager {
   private static instance: LiveAudioManager;
@@ -28,7 +31,30 @@ class LiveAudioManager {
 
   private constructor(appointmentId?: string) {
     // this.initializeAudioStream(appointmentId);
+    this.registerBackgroundTask();
   }
+
+  private async registerBackgroundTask() {
+    TaskManager.defineTask(BACKGROUND_UPLOAD_TASK, async () => {
+        try {
+            console.log('>>>> Background task is running..., calling uploadchunksto server');
+            await this.uploadChunksToServer(this.tenantName, false);
+            return BackgroundFetch.BackgroundFetchResult.NewData;
+        } catch (error) {
+            console.error('Error in background task:', error);
+            return BackgroundFetch.BackgroundFetchResult.Failed;
+        }
+    });
+
+    const status = await BackgroundFetch.getStatusAsync();
+    if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
+        await BackgroundFetch.registerTaskAsync(BACKGROUND_UPLOAD_TASK, {
+            minimumInterval: 15 * 60, // 15 minutes
+            stopOnTerminate: false,
+            startOnBoot: true,
+        });
+    }
+}
 
   public static getInstance(appointmentId?: string): LiveAudioManager {
     if (!LiveAudioManager.instance) {
@@ -354,45 +380,86 @@ class LiveAudioManager {
     }
   };
 
-  public async uploadChunksToServer(tenantName: string) {
+  public async uploadChunksToServer(tenantName: string, cleanup: boolean) {
+    try {
+      // get all the recordings from sqlite DB
+      const allRecordingsInLocalDB = await DatabaseService.getInstance().getRecordings();
 
-	try {
-		// get all the recordings from sqlite DB
-		const allRecordingsInLocalDB = await DatabaseService.getInstance().getRecordings();
-
-		console.log(">>> all recordings in local db: ", allRecordingsInLocalDB);
-    if(!allRecordingsInLocalDB || allRecordingsInLocalDB.length === 0 || this.isStreaming) {
-      return;
+      console.log(">>> all recordings in local db: ", allRecordingsInLocalDB);
+      if(!allRecordingsInLocalDB || allRecordingsInLocalDB.length === 0) {
+        return;
+      }
+    
+      // loop through all recording and call RecordUtils.uploadRecording(chunk, recordingId, tenantName) for each recording
+      for (const recording of allRecordingsInLocalDB) {
+        console.log(">>> recording object before chunks are uploaded: ", recording);
+        for (const chunk of recording.chunks) {
+          if(chunk.status === CHUNK_STATUS.Created) {
+              // upload the chunk
+              const success = await uploadChunkToServer(chunk, recording, tenantName);
+              if(success) {
+                chunk.status = CHUNK_STATUS.Uploaded;
+                // update the local sqlite db here as well, since we are not deleting the chunk as of now.
+                await DatabaseService.getInstance().updateChunkStatus(chunk, recording.id!);
+              }
+          }
+        }
+        console.log(">>> recording object after chunks are uploaded: ", recording);
+        if(cleanup && !this.isStreaming) {
+          let isAllChunksUploaded = recording.chunks.every((chunk) => chunk.status === CHUNK_STATUS.Uploaded);
+          const isLastChunkPresent = recording.chunks.some((chunk) => chunk.isLastChunk);
+          console.log(">>> isAllChunksUploaded: ", isAllChunksUploaded);
+          if(isAllChunksUploaded && isLastChunkPresent) {
+            // delete the recording 
+            await DatabaseService.getInstance().deleteRecording(recording.id!); // delete recording from sqlite
+            this.deleteAllChunksOfARecording(recording.appointmentId); // delete files from local filesystem
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error uploading chunks to server:', error);
     }
-	
-		// loop through all recording and call RecordUtils.uploadRecording(chunk, recordingId, tenantName) for each recording
-		for (const recording of allRecordingsInLocalDB) {
-			console.log(">>> recording object before chunks are uploaded: ", recording);
-			for (const chunk of recording.chunks) {
-				if(chunk.status === CHUNK_STATUS.Created) {
-						// upload the chunk
-						const success = await uploadChunkToServer(chunk, recording, tenantName);
-						if(success) {
-						  chunk.status = CHUNK_STATUS.Uploaded;
-						  // update the local sqlite db here as well, since we are not deleting the chunk as of now.
-						  await DatabaseService.getInstance().updateChunkStatus(chunk, recording.id!);
-						}
-				}
-			}
-			console.log(">>> recording object after chunks are uploaded: ", recording);
-			let isAllChunksUploaded = recording.chunks.every((chunk) => chunk.status === CHUNK_STATUS.Uploaded);
-			console.log(">>> isAllChunksUploaded: ", isAllChunksUploaded);
-			if(isAllChunksUploaded) {
-				// delete the recording 
-				await DatabaseService.getInstance().deleteRecording(recording.id!); // delete recording from sqlite
-				this.deleteAllChunksOfARecording(recording.appointmentId); // delete files from local filesystem
-			}
-		}
-		
-	} catch (error) {
-		console.error('Error uploading chunks to server:', error);
-	}
   }
+
+
+  public async handleStaleRecordings(tenantName: string) {
+    try {
+        // Get all recordings from SQLite DB
+        const allRecordingsInLocalDB = await DatabaseService.getInstance().getRecordings();
+
+        console.log(">>> Handling stale recordings. All recordings in local DB: ", allRecordingsInLocalDB);
+        if (!allRecordingsInLocalDB || allRecordingsInLocalDB.length === 0) {
+            return;
+        }
+
+        // Loop through all recordings
+        for (const recording of allRecordingsInLocalDB) {
+            const { chunks } = recording;
+            if (chunks.length === 0) continue;
+
+            // Check if the last chunk is present
+            const lastChunkIndex = chunks.length - 1;
+            const isLastChunkPresent = chunks.some(chunk => chunk.isLastChunk);
+
+            if (!isLastChunkPresent) {
+                console.log(">>> Last chunk is missing for recording: ", recording.id);
+                // Set isLastChunk to true for the last chunk
+                chunks[lastChunkIndex].isLastChunk = true;
+
+                // Update the chunk in the local SQLite DB
+                await DatabaseService.getInstance().updateChunkStatus(chunks[lastChunkIndex], recording.id!);
+            }
+        }
+
+        // Call uploadChunksToServer with cleanup set to true
+        await this.uploadChunksToServer(tenantName, true);
+
+    } catch (error) {
+        console.error('Error handling stale recordings:', error);
+    }
+}
+
 
 }
 
