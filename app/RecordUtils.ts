@@ -2,8 +2,8 @@
 import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { Audio } from 'expo-av';
-import Constants from 'expo-constants';
 import { Recording, Chunk } from './types';
+import { store } from '@/store/store';
 
 const API_BASE_URL = 'https://api.rsn8ly.xyz';
 
@@ -34,11 +34,14 @@ export const storeRecordingLocally = async (recordingUri: string, recordingId: s
 };
 
 export const deleteAppointment = async (appointmentId: number, tenantName: string): Promise<boolean> => {
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-  const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  // const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
-  if (!sessionCookie || !userEmail) {
-    console.error('Session cookie or user email not found.');
+  if (!sessionCookie) {
+    console.error('Session cookie not found.');
     return false;
   }
 
@@ -46,7 +49,6 @@ export const deleteAppointment = async (appointmentId: number, tenantName: strin
     'x-tenant-name': tenantName,
     'Content-Type': 'application/json',
     'Cookie': sessionCookie,
-    'created-by': userEmail,
   };
 
   try {
@@ -86,8 +88,10 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
     return true;
   }
 
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-  const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
@@ -96,9 +100,6 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
 
   if (sessionCookie) {
     headers['Cookie'] = sessionCookie;
-  }
-  if (userEmail) {
-    headers['created-by'] = userEmail;
   }
 
   const formData = new FormData();
@@ -163,11 +164,10 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
     return true;
   }
 
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
-  const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
-
-  console.log('>>> Session Cookie:', sessionCookie);
-  console.log('>>> User Email:', userEmail);
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
@@ -175,9 +175,6 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 
   if (sessionCookie) {
     headers['Cookie'] = sessionCookie;
-  }
-  if (userEmail) {
-    headers['created-by'] = userEmail;
   }
 
   const formData = new FormData();
@@ -243,7 +240,10 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 };
 
 export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string): Promise<any> => {
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
   // console.log('loadAppointments');
   // console.log(tenantName);
@@ -297,7 +297,10 @@ export const createAppointment = async (
   notes: string,
   tenantName: string
 ): Promise<{ success: boolean, appointmentId?: string }> => {
-  const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
 
   if (!sessionCookie) {
     console.error('Session cookie not found.');

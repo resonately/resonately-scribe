@@ -9,6 +9,7 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import analytics from '@react-native-firebase/analytics';
 import CreateMeetingSheet from './CreateMeetingSheet';
 import { FAB, useTheme } from 'react-native-paper';
+import * as SecureStore from 'expo-secure-store';
 import { RootStackParamList } from './_layout';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CalendarAppointments from './CalendarAppointments';
@@ -18,6 +19,8 @@ import { Appointment, Recording } from './types';
 import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
 import { useAuth } from './AuthContext';
 import LiveAudioManager from './LiveAudioManager';
+import { useDispatch } from 'react-redux';
+import { setSessionCookie } from '@/containers/secureStore/secureStoreSlice';
 
 // Define the navigation prop type
 type RecordingScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -50,7 +53,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
 
   const theme = useTheme();
   const db = useSQLiteContext();
-
+  const dispatch = useDispatch();
 
   function DrizzleStudio() {
     useDrizzleStudio(db)
@@ -120,6 +123,17 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   }, []);
 
   useEffect(() => {
+
+    const getAndSetSecureStoreData = async () => {
+      const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+      
+      if(sessionCookie) {
+        dispatch(setSessionCookie(sessionCookie));
+      }
+    }
+
+    getAndSetSecureStoreData();
+
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => {
       subscription.remove();

@@ -10,7 +10,6 @@ import ProtectedRoute from './ProtectedRoute';
 import theme from './theme'; // Adjust the path according to your project structure
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import MeetingControlsScreen from './MeetingControlsScreen';
-import AppointmentManager from './AppointmentManager';
 import PermissionScreen from './PermissionScreen'; // Import your PermissionScreen component
 import WelcomeScreen from './WelcomeScreen'; // Import your WelcomeScreen component
 import { Camera } from 'expo-camera';
@@ -22,6 +21,8 @@ import * as FileSystem from 'expo-file-system';
 import { SQLiteProvider } from 'expo-sqlite';
 import LiveAudioManager from './LiveAudioManager';
 import Bugsnag from '@bugsnag/expo';
+import { Provider as ReduxProvider } from 'react-redux';
+import { store } from '@/store/store';
 
 const loadDatabase = async () => {
   const dbName = "mySQLite.db";
@@ -140,13 +141,15 @@ const RootLayout = () => {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <PaperProvider theme={theme}>
-        <AuthProvider>
-          <SQLiteProvider databaseName='mySQLite.db'>
-            <RootLayoutComponent />
-          </SQLiteProvider>
-        </AuthProvider>
-      </PaperProvider>
+      <ReduxProvider store={store}>
+        <PaperProvider theme={theme}>
+          <AuthProvider>
+            <SQLiteProvider databaseName='mySQLite.db'>
+              <RootLayoutComponent />
+            </SQLiteProvider>
+          </AuthProvider>
+        </PaperProvider>
+      </ReduxProvider>
     </GestureHandlerRootView>
   );
 };

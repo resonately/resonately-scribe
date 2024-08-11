@@ -440,8 +440,7 @@ class LiveAudioManager {
     } catch (error) {
         console.error('Error handling stale recordings:', error);
     }
-}
-
+  }
 
 }
 
