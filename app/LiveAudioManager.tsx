@@ -182,7 +182,9 @@ class LiveAudioManager {
           this.updateCurrentRecording(newChunkObj, this.chunkCounter, isLastChunk);
           await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
           this.chunkCounter++;
-          await this.uploadChunksToServer(this.tenantName, false);
+          if(!isLastChunk) {
+            await this.uploadChunksToServer(this.tenantName, false);
+          }
 
         }
       }
