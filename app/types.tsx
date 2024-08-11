@@ -29,3 +29,12 @@ export interface Recording {
     chunks: Chunk[];
     chunkCounter: number;
 }
+
+export interface Appointment {
+    start: string;
+    end: string;
+    title: string;
+    summary?: string;
+    patient_name?: string;
+    appointment_type?: string;
+  }

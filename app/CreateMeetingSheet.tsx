@@ -14,6 +14,7 @@ import analytics from '@react-native-firebase/analytics';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from './_layout';
+import { Appointment } from './types';
 // Import the necessary types
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
@@ -26,17 +27,10 @@ interface CreateMeetingSheetProps {
     isSheetOpen: boolean;
     setIsSheetOpen: (isOpen: boolean) => void;
     refreshAppointments: () => void;
-    event?: {
-        id?: string;
-        title: string;
-        start: string;
-        end: string;
-        patient_name?: string;
-        appointment_type?: string;
-    };
-    handleJoinMeeting: (appointmentId: string) => void;
-    handleMuteToggle: () => void;
-    handleEndCall: () => void;
+    event?: Appointment | null;
+    handleJoinMeeting?: (appointmentId: string) => void;
+    handleMuteToggle?: () => void;
+    handleEndCall?: () => void;
     isMuted: boolean;
     isMeetingStarted: boolean;
     initialStartTime: number | null;

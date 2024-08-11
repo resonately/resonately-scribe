@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Text, Animated, AppState, AppStateStatus } from 'react-native';
+import { View, StyleSheet, Text, AppState, AppStateStatus } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NetInfo from '@react-native-community/netinfo';
 import { useKeepAwake } from 'expo-keep-awake';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as TaskManager from 'expo-task-manager';
+import * as BackgroundFetch from 'expo-background-fetch';
 import analytics from '@react-native-firebase/analytics';
 import CreateMeetingSheet from './CreateMeetingSheet';
 import { FAB, useTheme } from 'react-native-paper';
-import { Appointment } from './CalendarAppointments';
 import { RootStackParamList } from './_layout';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CalendarAppointments from './CalendarAppointments';
-import AppointmentManager from './AppointmentManager';
 import { useSQLiteContext } from 'expo-sqlite';
 import DatabaseService from './DatabaseService';
-import { Recording } from './types';
+import { Appointment, Recording } from './types';
 import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
 import { useAuth } from './AuthContext';
 import LiveAudioManager from './LiveAudioManager';
@@ -28,22 +28,16 @@ type Props = {
 };
 
 const CHUNK_UPLOAD_FREQUENCY = 5 * 60 * 1000; // 5 minutes
-const DELETE_RECORDINGS_RUN_REQUENCY = 60 * 1000; // every minute
-const MAX_RECORDINGS_AGE = 2 * 24 * 60 * 60 * 1000; // 2 days
-const MAX_DIR_AGE = 2 * 24 * 60 * 60 * 1000; // 10 days
+const BACKGROUND_UPLOAD_TASK = 'BACKGROUND_UPLOAD_TASK';
+
 
 const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   useKeepAwake(); // Keeps the app awake while this component is mounted
 
-  const [recordingId, setRecordingId] = useState<string | null>(null);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false); // New state for pause
   const [isConnected, setIsConnected] = useState(true);
-  const connectionAnim = useRef(new Animated.Value(0)).current;
-  const recordingIdRef = useRef<string | null>(null);
   const appointmentIdRef = useRef<string | null>(null);
-  const [recordings, setRecordings] = useState<Recording[]>([]);
-  const recordingsRef = useRef<Recording[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const createMeetingSheetRef = useRef<BottomSheet>(null);
   const uploadIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -65,15 +59,6 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
 
   const { tenantName } = useAuth().tenantDetails;
 
-  const updateRecordingsState = (newRecordings: Recording[]) => {
-    recordingsRef.current = newRecordings;
-    setRecordings(newRecordings);
-  };
-
-  const updateRecordingId = (newRecordingId: string | null) => {
-    recordingIdRef.current = newRecordingId;
-    setRecordingId(newRecordingId);
-  };
 
   const updateAppointmentId = (newAppointmentId: string | null) => {
     appointmentIdRef.current = newAppointmentId;
@@ -83,12 +68,38 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   const setRefreshAppointments = (refreshFunc: () => void) => {
     refreshAppointmentsRef.current = refreshFunc;
   };
+
+  const registerBackgroundTask = async () => {
+    TaskManager.defineTask(BACKGROUND_UPLOAD_TASK, async () => {
+        try {
+            // this will run every 15 mins and upload chunks and delete stale recordings if recording is not going on
+            await LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
+            return BackgroundFetch.BackgroundFetchResult.NewData;
+        } catch (error) {
+            console.error('Error in background task:', error);
+            return BackgroundFetch.BackgroundFetchResult.Failed;
+        }
+    });
+  
+    const status = await BackgroundFetch.getStatusAsync();
+    if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
+        await BackgroundFetch.registerTaskAsync(BACKGROUND_UPLOAD_TASK, {
+            minimumInterval: 15 * 60, // 15 minutes
+            stopOnTerminate: false,
+            startOnBoot: true,
+
+        });
+    }
+  }
   
   useEffect(() => {
+    // This runs every x interval to upload chunks and delete stale recordings in foreground
     uploadIntervalRef.current = setInterval(async () => {
         LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
         LiveAudioManager.getInstance().handleStaleRecordings(tenantName);
     }, CHUNK_UPLOAD_FREQUENCY);
+
+    registerBackgroundTask();
     
 
     return () => {

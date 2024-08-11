@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Animated, Easing, AppState, AppStateStatus, Alert } from 'react-native';
 import { FAB, useTheme } from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
-// import AppointmentManager from './AppointmentManager';
 import analytics from '@react-native-firebase/analytics';
 import { RootStackParamList } from './_layout';
 import { useNavigation, RouteProp, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FontAwesome5 } from '@expo/vector-icons';
 import LiveAudioManager from './LiveAudioManager';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useAuth } from './AuthContext';
+import { playWavFile } from './utils/FeedbackSound';
 
 interface Appointment {
     id: string;
@@ -35,10 +33,9 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const [muted, setMuted] = useState(isMuted);
     const [paused, setPaused] = useState(isPaused);
     const animatedValue = useState(new Animated.Value(0))[0];
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); //
-    const db = useSQLiteContext();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); 
+    const [isEndRecordingRunning, setIsEndRecordingRunning] = useState(false);
     const { tenantName } = useAuth().tenantDetails;
-    console.log('sqlite version', db.execSync('SELECT sqlite_version()'));
 
     useEffect(() => {
         const initializeRecording = async () => {
@@ -126,6 +123,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const handlePauseToggle = async () => {
         const newPausedState = !paused;
         handleToggle(setPaused, paused);
+        playWavFile(require('../assets/sample_audio.wav'));
 
         if (newPausedState) {
             LiveAudioManager.getInstance().pauseStreaming();
@@ -142,27 +140,28 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     };
 
     const handleEndMeeting = async () => {
-        const isRecordingStopped = await LiveAudioManager.getInstance().stopStreaming();
-        if(isRecordingStopped) {
-            console.log('End Meeting button pressed');
-            if (collapseSheet) {
-                collapseSheet();
-            }
-            navigation.navigate('DrawerNavigator');
-            await LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
+            setIsEndRecordingRunning(true);
+            const isRecordingStopped = await LiveAudioManager.getInstance().stopStreaming();
+            if(isRecordingStopped) {
+                console.log('End Meeting button pressed');
+                if (collapseSheet) {
+                    collapseSheet();
+                }
+                navigation.navigate('DrawerNavigator');
+                await LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
 
-            // Log the event for ending the meeting
-            analytics().logEvent('end_meeting', {
-                component: 'MeetingControlsScreen',
-                appointmentId: appointment?.id,
-                status: 'ended'
+                // Log the event for ending the meeting
+                analytics().logEvent('end_meeting', {
+                    component: 'MeetingControlsScreen',
+                    appointmentId: appointment?.id,
+                    status: 'ended'
             });
+            setIsEndRecordingRunning(false);
         } else {
             Alert.alert('Please resume the recording and try again!');
+            setIsEndRecordingRunning(false);
         }
     };
-
-    console.log("value of paused is: ", paused);
 
     return (
         <View style={styles.container}>
@@ -193,6 +192,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                     icon="phone-hangup"
                     label="End Appointment"
                     onPress={handleEndMeeting}
+                    disabled={isEndRecordingRunning}
                     style={styles.endMeetingFab}
                     color="white"
                     uppercase={false}

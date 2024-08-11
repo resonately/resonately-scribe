@@ -6,13 +6,10 @@ import { Dispatch, SetStateAction } from 'react';
 import { Chunk, CHUNK_STATUS, Recording, RECORDING_STATUS } from './types';
 import DatabaseService from './DatabaseService';
 import { uploadChunkToServer } from './RecordUtils';
-import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
 
-const DATA_CHECK_INTERVAL: number = 5000; // 5 seconds
+const INTERRUPTION_PAUSE_INTERVAL: number = 5000; // 5 seconds
 const MAX_DATA_WAIT_TIME: number = 5000; // 10 seconds
-const CHUNK_DURATION: number = 30000; // 30 seconds in milliseconds
-const BACKGROUND_UPLOAD_TASK = 'BACKGROUND_UPLOAD_TASK';
+const CHUNK_DURATION: number = 30 * 1000; // 30 seconds in milliseconds
 
 class LiveAudioManager {
   private static instance: LiveAudioManager;
@@ -22,7 +19,7 @@ class LiveAudioManager {
   private chunkStartTime: string = '';
   private chunkCounter: number = 0;
   private lastDataReceivedTime: number = 0;
-  private dataCheckTimer: NodeJS.Timeout | null = null;
+  private interruptionCheckTimer: NodeJS.Timeout | null = null;
   private pauseCallback: Dispatch<SetStateAction<boolean>> | null = null;
   private handleCompleteChunkInterval: NodeJS.Timeout | null = null;
   private appointmentId: string | undefined = undefined;
@@ -31,30 +28,7 @@ class LiveAudioManager {
 
   private constructor(appointmentId?: string) {
     // this.initializeAudioStream(appointmentId);
-    this.registerBackgroundTask();
   }
-
-  private async registerBackgroundTask() {
-    TaskManager.defineTask(BACKGROUND_UPLOAD_TASK, async () => {
-        try {
-            console.log('>>>> Background task is running..., calling uploadchunksto server');
-            await this.uploadChunksToServer(this.tenantName, false);
-            return BackgroundFetch.BackgroundFetchResult.NewData;
-        } catch (error) {
-            console.error('Error in background task:', error);
-            return BackgroundFetch.BackgroundFetchResult.Failed;
-        }
-    });
-
-    const status = await BackgroundFetch.getStatusAsync();
-    if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
-        await BackgroundFetch.registerTaskAsync(BACKGROUND_UPLOAD_TASK, {
-            minimumInterval: 15 * 60, // 15 minutes
-            stopOnTerminate: false,
-            startOnBoot: true,
-        });
-    }
-}
 
   public static getInstance(appointmentId?: string): LiveAudioManager {
     if (!LiveAudioManager.instance) {
@@ -112,19 +86,17 @@ class LiveAudioManager {
 
     this.handleCompleteChunkInterval = setInterval(async () => {
       if (this.isStreaming && this.currentChunk.length > 0 && !this.isPaused) {
-        console.log(">>> Inside Interval, calling handle complete chunk.....");
         await this.handleCompleteChunk();
       }
-    }, 20000);
+    }, CHUNK_DURATION);
 
-    this.startDataCheckTimer();
+    this.startInterruptionCheckTimer();
 
   }
 
   // checking for interruption
-  private startDataCheckTimer(): void {
-    this.dataCheckTimer = setInterval(async () => {
-      console.log(">>> Inside interruption check interval", this.isPaused, this.isStreaming);
+  private startInterruptionCheckTimer(): void {
+    this.interruptionCheckTimer = setInterval(async () => {
       if (this.isStreaming && !this.isPaused) {
         const currentTime = Date.now();
         if (currentTime - this.lastDataReceivedTime > MAX_DATA_WAIT_TIME) {
@@ -132,19 +104,18 @@ class LiveAudioManager {
           await this.pauseStreaming(true);
         }
       }
-    }, DATA_CHECK_INTERVAL);
+    }, INTERRUPTION_PAUSE_INTERVAL);
   }
 
-  private stopDataCheckTimer(): void {
-    if (this.dataCheckTimer) {
-      clearInterval(this.dataCheckTimer);
-      this.dataCheckTimer = null;
+  private stopInterruptionCheckTimer(): void {
+    if (this.interruptionCheckTimer) {
+      clearInterval(this.interruptionCheckTimer);
+      this.interruptionCheckTimer = null;
     }
   }
 
   private processAudioChunk(chunk: Buffer): void {
     if (this.currentChunk.length === 0) {
-      console.log(">>>> Updating this.chunkStartTime ");
       this.chunkStartTime = new Date().toISOString();
     }
 
@@ -185,6 +156,14 @@ class LiveAudioManager {
     }
   }
 
+
+  /**
+   * This will run every CHUNK_DURATION duration and will do these steps:
+   * 1. Create chunk path and save the current chunk to the file system
+   * 2. Restart variables for next chunk 
+   * 3. Update the recording object in DB and insert chunk in DB
+   * 4. Upload the chunks to server
+   */
   private async handleCompleteChunk({isLastChunk}: { isLastChunk: boolean } = {isLastChunk: false}): Promise<void> {
     console.log(">>> Inside handlecomplete chunk appointmentId is:", this.appointmentId, isLastChunk);
     const chunkFileName = `audio_chunk_${this.chunkCounter}.raw`;
@@ -198,13 +177,12 @@ class LiveAudioManager {
       if(fileDetails.exists){
         if(fileDetails.size > 0) {
 
-          // Reset for the next chunk
           this.currentChunk = Buffer.alloc(0);
           const newChunkObj = this.createChunk({ chunkCounter: this.chunkCounter, isLastChunk , startTime: this.chunkStartTime, uri: chunkFilePath });
           this.updateCurrentRecording(newChunkObj, this.chunkCounter, isLastChunk);
-          // create a new chunk and increment chunk counter and update this.currentRecordingObj
           await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
           this.chunkCounter++;
+          await this.uploadChunksToServer(this.tenantName, false);
 
         }
       }
@@ -217,6 +195,7 @@ class LiveAudioManager {
 
   public startStreaming(appointmentId: string): void {
     try{
+      console.log(">>> Inside start streaming appointmentId: ", appointmentId);
       this.initializeAudioStream(appointmentId);
       LiveAudioStream.start();
       this.isStreaming = true;
@@ -232,31 +211,24 @@ class LiveAudioManager {
 
   public async stopStreaming(isComingFromPause: boolean = false): Promise<boolean> {
     try{
-
+      console.log(">>> Inside stop Streaming isComingFromPause: ", isComingFromPause, this.isPaused, this.isStreaming);
       if (this.isStreaming && !this.isPaused) {
         LiveAudioStream.stop();
-        this.stopDataCheckTimer();
+        this.stopInterruptionCheckTimer();
         clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
       
         if(isComingFromPause) {
-          // just pausing the recording, clear intervals and save the chunk
           await this.handleCompleteChunk();
-          console.log(">>> Printing the recording object 1: ", this.currentRecordingObj);
           return false;
         } else {
-          // actually stop the recording, create the chunk, insert chunk in localDB, updateChunkCounter
           await this.handleCompleteChunk({ isLastChunk: true }); 
           this.chunkCounter=0;
           this.appointmentId = undefined;
-          console.log(">>> Printing the final recording object: ", this.currentRecordingObj);
           this.currentRecordingObj = null;
           this.isStreaming = false;
           this.isPaused = false;
           this.tenantName = '';
-          console.log('>>>Audio streaming stopped, uploading chunks now');
           return true;
-          // await this.listAllFiles();
-          // await this.deleteAllFiles();
         }
       } else {
         console.error('>>>Audio streaming is not active');
@@ -270,7 +242,7 @@ class LiveAudioManager {
   }
 
   public async pauseStreaming(internal: boolean = false) {
-    console.log(">>>> Inside pause streaming");
+    console.log(">>>> Inside pause streaming internal", internal);
     if (this.isStreaming && !this.isPaused) { 
       if(internal && this.pauseCallback) {
         this.pauseCallback(true);
@@ -287,11 +259,11 @@ class LiveAudioManager {
   }
 
   public resumeStreaming(): void {
+    console.log('>>>Audio streaming resumed', this.isPaused, this.isStreaming);
     if (this.isStreaming && this.isPaused) {
       this.chunkStartTime = new Date().toISOString(); // Reset the chunk start time
       this.lastDataReceivedTime = Date.now();
       this.startStreaming(this.appointmentId ?? '');
-      console.log('>>>Audio streaming resumed');
     } else if (!this.isStreaming) {
       console.log('>>>Cannot resume, audio streaming is not active');
     } else if (!this.isPaused) {
@@ -381,19 +353,27 @@ class LiveAudioManager {
     }
   };
 
+  /**
+   * 1. This functions check for recordings present in local DB and upload their chunks to server
+   * 2. It also checks if all chunks of a rec are uploaded and rec is not going on, then clear the DB and local files
+   * 3. This gets called at multiple places:
+   *    a. When the recording is going on It runs on every CHUNK_DURATION
+   *    b. When the app is in background, it runs every 15 minutes as a background task
+   *    c. When the app is foreground and rec is not going on, it runs every 5 minutes
+   *    d. When the user clicks on end recording
+   */
   public async uploadChunksToServer(tenantName: string, cleanup: boolean) {
     try {
       // get all the recordings from sqlite DB
       const allRecordingsInLocalDB = await DatabaseService.getInstance().getRecordings();
 
-      console.log(">>> all recordings in local db: ", allRecordingsInLocalDB);
+      console.log(">>> Inside uploadChunksToServer recordings in local db: ", allRecordingsInLocalDB);
       if(!allRecordingsInLocalDB || allRecordingsInLocalDB.length === 0) {
         return;
       }
     
       // loop through all recording and call RecordUtils.uploadRecording(chunk, recordingId, tenantName) for each recording
       for (const recording of allRecordingsInLocalDB) {
-        console.log(">>> recording object before chunks are uploaded: ", recording);
         for (const chunk of recording.chunks) {
           if(chunk.status === CHUNK_STATUS.Created) {
               // upload the chunk
@@ -405,7 +385,6 @@ class LiveAudioManager {
               }
           }
         }
-        console.log(">>> recording object after chunks are uploaded: ", recording);
         if(cleanup && !this.isStreaming) {
           let isAllChunksUploaded = recording.chunks.every((chunk) => chunk.status === CHUNK_STATUS.Uploaded);
           const isLastChunkPresent = recording.chunks.some((chunk) => chunk.isLastChunk);

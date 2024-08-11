@@ -7,15 +7,7 @@ import { fetchAppointments } from './RecordUtils';
 import { useAuth } from './AuthContext';
 import CalendarEvent from './CalendarEvent';
 import analytics from '@react-native-firebase/analytics';
-
-export interface Appointment {
-  start: string;
-  end: string;
-  title: string;
-  summary?: string;
-  patient_name?: string;
-  appointment_type?: string;
-}
+import { Appointment } from './types';
 
 interface CalendarAppointmentsProps {
   setSelectedEvent: (event: Appointment | null) => void;
