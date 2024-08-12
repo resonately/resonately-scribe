@@ -76,6 +76,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
     TaskManager.defineTask(BACKGROUND_UPLOAD_TASK, async () => {
         try {
             // this will run every 15 mins and upload chunks and delete stale recordings if recording is not going on
+            console.log(">>> upload chunks to server 3");
             await LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
             return BackgroundFetch.BackgroundFetchResult.NewData;
         } catch (error) {
@@ -98,16 +99,18 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   useEffect(() => {
     // This runs every x interval to upload chunks and delete stale recordings in foreground
     uploadIntervalRef.current = setInterval(async () => {
-        LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
-        LiveAudioManager.getInstance().handleStaleRecordings(tenantName);
+        console.log(">>> upload chunks to server 5");
+        await LiveAudioManager.getInstance().handleStaleRecordings(tenantName);
     }, CHUNK_UPLOAD_FREQUENCY);
 
     registerBackgroundTask();
     
 
     return () => {
+      console.log(">>>>>  Inside return of recording Screen 2");
       if (uploadIntervalRef.current) {
         clearInterval(uploadIntervalRef.current);
+        uploadIntervalRef.current = null;
       }
     };
   }, []);

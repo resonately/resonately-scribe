@@ -170,6 +170,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                     collapseSheet();
                 }
                 navigation.navigate('DrawerNavigator');
+                console.log(">>>> upload chunks to server 2");
                 await LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
 
                 // Log the event for ending the meeting

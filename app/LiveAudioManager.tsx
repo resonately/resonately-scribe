@@ -188,6 +188,7 @@ class LiveAudioManager {
           await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
           this.chunkCounter++;
           if(!isLastChunk) {
+            console.log(">>> Uploading chunks to server 7");
             this.uploadChunksToServer(this.tenantName, false);
           }
         }
@@ -422,6 +423,12 @@ class LiveAudioManager {
 
   public async handleStaleRecordings(tenantName: string) {
     try {
+
+        console.log(">>>> Inside hanldleStaleRecordings", this.isStreaming);
+        if(this.isStreaming) {
+          return;
+        }
+
         // Get all recordings from SQLite DB
         const allRecordingsInLocalDB = await DatabaseService.getInstance().getRecordings();
 
@@ -450,6 +457,7 @@ class LiveAudioManager {
         }
 
         // Call uploadChunksToServer with cleanup set to true
+        console.log(">>> Uploading chunks to server 1");
         await this.uploadChunksToServer(tenantName, true);
 
     } catch (error) {
