@@ -6,6 +6,7 @@ import { Dispatch, SetStateAction } from 'react';
 import { Chunk, CHUNK_STATUS, Recording, RECORDING_STATUS } from './types';
 import DatabaseService from './DatabaseService';
 import { uploadChunkToServer } from './RecordUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const INTERRUPTION_PAUSE_INTERVAL: number = 5000; // 5 seconds
 const MAX_DATA_WAIT_TIME: number = 5000; // 10 seconds
@@ -20,7 +21,7 @@ class LiveAudioManager {
   private chunkCounter: number = 0;
   private lastDataReceivedTime: number = 0;
   private interruptionCheckTimer: NodeJS.Timeout | null = null;
-  private pauseCallback: Dispatch<SetStateAction<boolean>> | null = null;
+  private pauseCallback: (() => Promise<void>) | undefined = undefined;
   private handleCompleteChunkInterval: NodeJS.Timeout | null = null;
   private appointmentId: string | undefined = undefined;
   private currentRecordingObj: Recording | null = null;
@@ -37,7 +38,7 @@ class LiveAudioManager {
     return LiveAudioManager.instance;
   }
 
-  public setPauseCallback(callback: Dispatch<SetStateAction<boolean>>) {
+  public setPauseCallback(callback: () => Promise<void>) {
     this.pauseCallback = callback;
   }
 
@@ -100,8 +101,12 @@ class LiveAudioManager {
       if (this.isStreaming && !this.isPaused) {
         const currentTime = Date.now();
         if (currentTime - this.lastDataReceivedTime > MAX_DATA_WAIT_TIME) {
-          console.log('No data received for a while, pausing the recording');
-          await this.pauseStreaming(true);
+          console.log('>>>> No data received for a while, pausing the recording');
+          if(this.pauseCallback){
+            // this.isPaused = true;
+            await this.pauseCallback();
+          }
+
         }
       }
     }, INTERRUPTION_PAUSE_INTERVAL);
@@ -183,9 +188,8 @@ class LiveAudioManager {
           await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
           this.chunkCounter++;
           if(!isLastChunk) {
-            await this.uploadChunksToServer(this.tenantName, false);
+            this.uploadChunksToServer(this.tenantName, false);
           }
-
         }
       }
 
@@ -244,33 +248,41 @@ class LiveAudioManager {
   }
 
   public async pauseStreaming(internal: boolean = false) {
-    console.log(">>>> Inside pause streaming internal", internal);
+    console.log(">>>> Inside pause streaming internal", internal, this.isPaused);
     if (this.isStreaming && !this.isPaused) { 
-      if(internal && this.pauseCallback) {
-        this.pauseCallback(true);
-        clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
-      }
+      // if(internal && this.pauseCallback) {
+      //   console.log(">>>> Inside pause streaming calling pause callback");
+      //   this.pauseCallback(true);
+      //   clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
+      //   this.isPaused = true;
+      //   return;
+      // }
       await this.stopStreaming(true);
       this.isPaused = true;
       console.log('>>>Audio streaming paused');
+      return true;
     } else if (!this.isStreaming) {
       console.log('>>>Cannot pause, audio streaming is not active');
+      return false;
     } else if (this.isPaused) {
       console.log('>>>Audio streaming is already paused');
+      return false;
     }
   }
 
-  public resumeStreaming(): void {
+  public resumeStreaming(): boolean {
     console.log('>>>Audio streaming resumed', this.isPaused, this.isStreaming);
     if (this.isStreaming && this.isPaused) {
       this.chunkStartTime = new Date().toISOString(); // Reset the chunk start time
       this.lastDataReceivedTime = Date.now();
       this.startStreaming(this.appointmentId ?? '');
+      return true;
     } else if (!this.isStreaming) {
       console.log('>>>Cannot resume, audio streaming is not active');
     } else if (!this.isPaused) {
       console.log('>>>Audio streaming is not paused');
     }
+    return false;
   }
 
   public async listAllFiles() {
@@ -365,11 +377,14 @@ class LiveAudioManager {
    *    d. When the user clicks on end recording
    */
   public async uploadChunksToServer(tenantName: string, cleanup: boolean) {
+    if(!tenantName) {
+      tenantName = await AsyncStorage.getItem('tenantName') ?? '';
+    }
     try {
       // get all the recordings from sqlite DB
       const allRecordingsInLocalDB = await DatabaseService.getInstance().getRecordings();
 
-      console.log(">>> Inside uploadChunksToServer recordings in local db: ", allRecordingsInLocalDB);
+      console.log(">>> Inside uploadChunksToServer recordings in local db: ", allRecordingsInLocalDB, tenantName);
       if(!allRecordingsInLocalDB || allRecordingsInLocalDB.length === 0) {
         return;
       }
@@ -394,7 +409,7 @@ class LiveAudioManager {
           if(isAllChunksUploaded && isLastChunkPresent) {
             // delete the recording 
             await DatabaseService.getInstance().deleteRecording(recording.id!); // delete recording from sqlite
-            this.deleteAllChunksOfARecording(recording.appointmentId); // delete files from local filesystem
+            await this.deleteAllChunksOfARecording(recording.appointmentId); // delete files from local filesystem
           }
         }
       }

@@ -9,6 +9,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import LiveAudioManager from './LiveAudioManager';
 import { useAuth } from './AuthContext';
 import { playWavFile } from './utils/FeedbackSound';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Appointment {
     id: string;
@@ -28,13 +29,14 @@ type MeetingControlsScreenRouteProp = RouteProp<RootStackParamList, 'MeetingCont
 
 const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const route = useRoute<MeetingControlsScreenRouteProp>();
-    const { isMuted = false, isPaused = false, appointment, collapseSheet } = route.params || {};
+    const { isMuted = false, appointment, collapseSheet } = route.params || {};
     const theme = useTheme();
     const [muted, setMuted] = useState(isMuted);
-    const [paused, setPaused] = useState(isPaused);
+    const [paused, setPaused] = useState(false);
     const animatedValue = useState(new Animated.Value(0))[0];
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); 
     const [isEndRecordingRunning, setIsEndRecordingRunning] = useState(false);
+    const [isPauseButtonClicked, setIsPauseButtonClicked] = useState(false);
     const { tenantName } = useAuth().tenantDetails;
 
     useEffect(() => {
@@ -44,7 +46,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                     // AppointmentManager.uploadChunksPeriodically();
                     // await AppointmentManager.startRecording(appointment.id);
                     LiveAudioManager.getInstance(appointment.id).startStreaming(appointment.id);
-                    LiveAudioManager.getInstance().setPauseCallback(setPaused);
+                    LiveAudioManager.getInstance().setPauseCallback(handlePauseToggle);
                 }
             } catch (error) {
                 console.error('Error initializing recording:', error);
@@ -61,6 +63,11 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     
 
     useEffect(() => {
+
+        if(tenantName) {
+            AsyncStorage.setItem('tenantName', tenantName);
+        }
+
         const handleAppStateChange = (nextAppState: AppStateStatus) => {
             if (nextAppState === 'active') {
                 console.log('App has come to the foreground!');
@@ -121,22 +128,37 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     };
 
     const handlePauseToggle = async () => {
-        const newPausedState = !paused;
-        handleToggle(setPaused, paused);
-        playWavFile(require('../assets/sample_audio.wav'));
+        try {
+            const isPaused = !paused; // paused state is false when recording is going on and user presses the pause button
+            setIsPauseButtonClicked(true);
 
-        if (newPausedState) {
-            LiveAudioManager.getInstance().pauseStreaming();
-        } else {
-            LiveAudioManager.getInstance().resumeStreaming();
+            if (isPaused) { // if paused is true, then we need to pause the streaming
+                console.log(">>>> Inside handlePauseToggle calling pause streaming");
+                const isSuccessfullyPaused = await LiveAudioManager.getInstance().pauseStreaming();
+                if(isSuccessfullyPaused) {
+                    handleToggle(setPaused, paused);
+                    playWavFile(require('../assets/sample_audio.wav'));
+                }
+            } else {
+                console.log(">>>> Inside handlePauseToggle calling resume streaming");
+                const isSuccessFullyResumed = LiveAudioManager.getInstance().resumeStreaming();
+                if(isSuccessFullyResumed) {
+                    handleToggle(setPaused, paused);
+                    playWavFile(require('../assets/sample_audio.wav'));
+                }
+            }
+            setIsPauseButtonClicked(false);
+
+            // Log the event for pause toggle
+            analytics().logEvent('pause_toggle', {
+                component: 'MeetingControlsScreen',
+                appointmentId: appointment?.id,
+                status: isPaused ? 'paused' : 'resumed'
+            });
+        } catch (err) {
+            console.error('Error in handlePauseToggle:', err);
+            setIsPauseButtonClicked(false);
         }
-
-        // Log the event for pause toggle
-        analytics().logEvent('pause_toggle', {
-            component: 'MeetingControlsScreen',
-            appointmentId: appointment?.id,
-            status: newPausedState ? 'paused' : 'resumed'
-        });
     };
 
     const handleEndMeeting = async () => {
@@ -186,6 +208,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                         onPress={handlePauseToggle}
                         style={[styles.fab, styles.fabMutePause, paused && styles.fabToggled]}
                         color={paused ? 'red' : theme.colors.primary}
+                        disabled={isPauseButtonClicked}
                     />
                 </View>
                 <FAB
