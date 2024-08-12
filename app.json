@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "48",
+      "buildNumber": "57",
       "bundleIdentifier": "com.myhearingapp.AIScribeApp",
       "icon": "./assets/images/resonately-icon-1024.png",
       "googleServicesFile": "./GoogleService-Info.plist",
@@ -60,7 +60,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "API_BASE_URL": "https://api.rsn8ly.xyz",
+      "API_BASE_URL": "https://api.myhearing.app",
       "router": {
         "origin": false
       },

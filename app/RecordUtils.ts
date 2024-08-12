@@ -4,8 +4,9 @@ import * as SecureStore from 'expo-secure-store';
 import { Audio } from 'expo-av';
 import { Recording, Chunk } from './types';
 import { store } from '@/store/store';
+import Constants from 'expo-constants';
 
-const API_BASE_URL = 'https://api.rsn8ly.xyz';
+const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
 export const getRecordingUri = async (recording: Audio.Recording): Promise<string | null> => {
   return recording.getURI();
