@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const INTERRUPTION_PAUSE_INTERVAL: number = 5000; // 5 seconds
 const MAX_DATA_WAIT_TIME: number = 5000; // 10 seconds
-const CHUNK_DURATION: number = 30 * 1000; // 30 seconds in milliseconds
+const CHUNK_DURATION: number = 60 * 1000; // 30 seconds in milliseconds
 
 class LiveAudioManager {
   private static instance: LiveAudioManager;
