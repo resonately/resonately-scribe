@@ -2,15 +2,15 @@ import LiveAudioStream, { Options } from 'react-native-live-audio-stream';
 import { Buffer } from 'buffer';
 import * as FileSystem from 'expo-file-system';
 import uuid from 'react-native-uuid';
-import { Dispatch, SetStateAction } from 'react';
 import { Chunk, CHUNK_STATUS, Recording, RECORDING_STATUS } from './types';
 import DatabaseService from './DatabaseService';
 import { uploadChunkToServer } from './RecordUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Bugsnag from '@bugsnag/expo';
 
-const INTERRUPTION_PAUSE_INTERVAL: number = 5000; // 5 seconds
-const MAX_DATA_WAIT_TIME: number = 5000; // 10 seconds
-const CHUNK_DURATION: number = 60 * 1000; // 30 seconds in milliseconds
+const INTERRUPTION_PAUSE_INTERVAL: number = 3000; // 3 seconds
+const MAX_DATA_WAIT_TIME: number = 3000; // 3 seconds
+const CHUNK_DURATION: number = 60 * 1000; // 60 seconds
 
 class LiveAudioManager {
   private static instance: LiveAudioManager;
@@ -196,6 +196,7 @@ class LiveAudioManager {
 
     } catch (error) {
       console.error('Error saving audio chunk to local file:', error);
+      Bugsnag.notify({name: "Error saving audio chunk to local file", message: JSON.stringify(error ?? '')});
     }
   }
 
@@ -213,6 +214,7 @@ class LiveAudioManager {
       this.appointmentId = appointmentId;
     } catch (err) {
       console.error("Error in start streaming: ", err);
+      Bugsnag.notify({name: "Error in start streaming", message: JSON.stringify(err ?? '')});
     }
   }
 
@@ -303,6 +305,7 @@ class LiveAudioManager {
       console.log(">>>> listed all the files present");
     } catch (error) {
       console.error('Error reading files:', error);
+      Bugsnag.notify({name: "Error reading files", message: JSON.stringify(error ?? '')});
     }
   };
 
@@ -344,6 +347,7 @@ class LiveAudioManager {
       console.log('All files and directories deleted.');
     } catch (error) {
       console.error('Error deleting files:', error);
+      Bugsnag.notify({name: "Error deleting files 1", message: JSON.stringify(error ?? '')});
     }
   };
 
@@ -365,6 +369,7 @@ class LiveAudioManager {
 
     } catch (error) {
       console.error('Error deleting files:', error);
+      Bugsnag.notify({name: "Error deleting files", message: JSON.stringify(error ?? '')});
     }
   };
 
@@ -417,6 +422,7 @@ class LiveAudioManager {
       
     } catch (error) {
       console.error('Error uploading chunks to server:', error);
+      Bugsnag.notify({name: "Error uploading chunks to server", message: JSON.stringify(error ?? '')});
     }
   }
 
@@ -462,6 +468,7 @@ class LiveAudioManager {
 
     } catch (error) {
         console.error('Error handling stale recordings:', error);
+        Bugsnag.notify({name: "Error handling stale recordings", message: JSON.stringify(error ?? '')});
     }
   }
 

@@ -10,6 +10,7 @@ import LiveAudioManager from './LiveAudioManager';
 import { useAuth } from './AuthContext';
 import { playWavFile } from './utils/FeedbackSound';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Bugsnag from '@bugsnag/expo';
 
 interface Appointment {
     id: string;
@@ -50,6 +51,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 }
             } catch (error) {
                 console.error('Error initializing recording:', error);
+                Bugsnag.notify({name: "Error initializing recording", message: JSON.stringify(error ?? '')});
             }
         };
     
@@ -157,6 +159,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
             });
         } catch (err) {
             console.error('Error in handlePauseToggle:', err);
+            Bugsnag.notify({name: "Error in handlePauseToggle", message: JSON.stringify(err ?? '')});
             setIsPauseButtonClicked(false);
         }
     };

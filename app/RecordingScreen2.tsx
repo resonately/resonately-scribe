@@ -21,6 +21,7 @@ import { useAuth } from './AuthContext';
 import LiveAudioManager from './LiveAudioManager';
 import { useDispatch } from 'react-redux';
 import { setSessionCookie } from '@/containers/secureStore/secureStoreSlice';
+import Bugsnag from '@bugsnag/expo';
 
 // Define the navigation prop type
 type RecordingScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -81,6 +82,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
             return BackgroundFetch.BackgroundFetchResult.NewData;
         } catch (error) {
             console.error('Error in background task:', error);
+            Bugsnag.notify({name: "Error in background task", message: JSON.stringify(error ?? '')});
             return BackgroundFetch.BackgroundFetchResult.Failed;
         }
     });
