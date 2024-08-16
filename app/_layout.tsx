@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -23,6 +23,7 @@ import LiveAudioManager from './LiveAudioManager';
 import Bugsnag from '@bugsnag/expo';
 import { Provider as ReduxProvider } from 'react-redux';
 import { store } from '@/store/store';
+import useNotifications from '@/hooks/useNotification';
 
 const loadDatabase = async () => {
   const dbName = "mySQLite.db";
@@ -130,6 +131,8 @@ const RootLayoutComponent = () => {
 
 
 const RootLayout = () => {
+
+  useNotifications();
 
   useEffect(() => {
     Bugsnag.start();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Text, AppState, AppStateStatus } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NetInfo from '@react-native-community/netinfo';
@@ -218,28 +218,28 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
 					/>
 					{!isRecording && (
 						<FAB
-						style={{
-							position: 'absolute',
-							margin: 16,
-							right: 0,
-							bottom: 0,
-							backgroundColor: iscreateMeetingSheetOpen ? 'white' : theme.colors.primary, // Change background color conditionally
-							borderWidth: iscreateMeetingSheetOpen ? 1 : 0, // Add border for outlined style
-							borderColor: theme.colors.primary, // Use primary color for border
-						}}
-						icon={() => iscreateMeetingSheetOpen ? <MaterialIcons name="close" size={25} color={theme.colors.primary} />:<MaterialIcons name="add-circle-outline" size={25} color="white" />}
-						onPress={() => {
-							setSelectedEvent(null);
-							setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
-							if (!iscreateMeetingSheetOpen) {
-								updateAppointmentId(null);
-								analytics().logEvent('open_new_appointment_sheet');
-							} else {
-								analytics().logEvent('close_new_appointment_sheet');
-							}
-						}}
-						color={iscreateMeetingSheetOpen ? theme.colors.primary : "white"} // Change icon color conditionally
-						label={iscreateMeetingSheetOpen ? "" : "New Appointment"}
+              style={{
+                position: 'absolute',
+                margin: 16,
+                right: 0,
+                bottom: 0,
+                backgroundColor: iscreateMeetingSheetOpen ? 'white' : theme.colors.primary, // Change background color conditionally
+                borderWidth: iscreateMeetingSheetOpen ? 1 : 0, // Add border for outlined style
+                borderColor: theme.colors.primary, // Use primary color for border
+              }}
+              icon={() => iscreateMeetingSheetOpen ? <MaterialIcons name="close" size={25} color={theme.colors.primary} />:<MaterialIcons name="add-circle-outline" size={25} color="white" />}
+              onPress={() => {
+                setSelectedEvent(null);
+                setIscreateMeetingSheetOpen(!iscreateMeetingSheetOpen);
+                if (!iscreateMeetingSheetOpen) {
+                  updateAppointmentId(null);
+                  analytics().logEvent('open_new_appointment_sheet');
+                } else {
+                  analytics().logEvent('close_new_appointment_sheet');
+                }
+              }}
+              color={iscreateMeetingSheetOpen ? theme.colors.primary : "white"} // Change icon color conditionally
+              label={iscreateMeetingSheetOpen ? "" : "New Appointment"}
 						/>
 					)}
 				</>

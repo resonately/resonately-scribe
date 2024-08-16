@@ -7,6 +7,7 @@ import DatabaseService from './DatabaseService';
 import { uploadChunkToServer } from './RecordUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Bugsnag from '@bugsnag/expo';
+import { sendNotification } from '@/hooks/useNotification';
 
 const INTERRUPTION_PAUSE_INTERVAL: number = 3000; // 3 seconds
 const MAX_DATA_WAIT_TIME: number = 3000; // 3 seconds
@@ -105,8 +106,8 @@ class LiveAudioManager {
           if(this.pauseCallback){
             // this.isPaused = true;
             await this.pauseCallback();
+            sendNotification({ title: "Recording Paused", body: "Please click on resume to start recording" });
           }
-
         }
       }
     }, INTERRUPTION_PAUSE_INTERVAL);
@@ -187,8 +188,9 @@ class LiveAudioManager {
           this.updateCurrentRecording(newChunkObj, this.chunkCounter, isLastChunk);
           await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
           this.chunkCounter++;
-          if(!isLastChunk) {
-            console.log(">>> Uploading chunks to server 7");
+          if(isLastChunk) {
+            await this.uploadChunksToServer(this.tenantName, false);
+          } else {
             this.uploadChunksToServer(this.tenantName, false);
           }
         }

@@ -37,4 +37,10 @@ export interface Appointment {
     summary?: string;
     patient_name?: string;
     appointment_type?: string;
-  }
+}
+
+export type NotificationMessage {
+    title: string;
+    body: string;
+    data?: Record<string, any>;
+}
