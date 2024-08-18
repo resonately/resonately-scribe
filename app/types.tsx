@@ -39,7 +39,7 @@ export interface Appointment {
     appointment_type?: string;
 }
 
-export type NotificationMessage {
+export interface NotificationMessage {
     title: string;
     body: string;
     data?: Record<string, any>;
