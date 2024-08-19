@@ -8,7 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FontAwesome5 } from '@expo/vector-icons';
 import LiveAudioManager from './LiveAudioManager';
 import { useAuth } from './AuthContext';
-import { playWavFile } from './utils/FeedbackSound';
+import { playWavFile } from '../utils/FeedbackSound';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Bugsnag from '@bugsnag/expo';
 
@@ -173,8 +173,6 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                     collapseSheet();
                 }
                 navigation.navigate('DrawerNavigator');
-                console.log(">>>> upload chunks to server 2");
-                await LiveAudioManager.getInstance().uploadChunksToServer(tenantName, true);
 
                 // Log the event for ending the meeting
                 analytics().logEvent('end_meeting', {

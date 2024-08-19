@@ -22,6 +22,8 @@ import LiveAudioManager from './LiveAudioManager';
 import { useDispatch } from 'react-redux';
 import { setSessionCookie } from '@/containers/secureStore/secureStoreSlice';
 import Bugsnag from '@bugsnag/expo';
+import { getRemoteValueAsNumber } from '../utils/remoteConfigService';
+import { remoteConfigKeys } from '@/utils/constants';
 
 // Define the navigation prop type
 type RecordingScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -31,7 +33,6 @@ type Props = {
   navigation: RecordingScreenNavigationProp;
 };
 
-const CHUNK_UPLOAD_FREQUENCY = 5 * 60 * 1000; // 5 minutes
 const BACKGROUND_UPLOAD_TASK = 'BACKGROUND_UPLOAD_TASK';
 
 
@@ -99,6 +100,9 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   }
   
   useEffect(() => {
+
+    const CHUNK_UPLOAD_FREQUENCY = getRemoteValueAsNumber(remoteConfigKeys.CHUNK_UPLOAD_FREQUENCY) || 5 * 60 * 1000; // 5 minutes
+
     // This runs every x interval to upload chunks and delete stale recordings in foreground
     uploadIntervalRef.current = setInterval(async () => {
         console.log(">>> upload chunks to server 5");

@@ -24,6 +24,7 @@ import Bugsnag from '@bugsnag/expo';
 import { Provider as ReduxProvider } from 'react-redux';
 import { store } from '@/store/store';
 import useNotifications from '@/hooks/useNotification';
+import { fetchConfig } from '../utils/remoteConfigService';
 
 const loadDatabase = async () => {
   const dbName = "mySQLite.db";
@@ -136,6 +137,8 @@ const RootLayout = () => {
 
   useEffect(() => {
     Bugsnag.start();
+    // initialize remote config
+    fetchConfig();
     loadDatabase()
       .then(() => {
         console.log('Database loaded');

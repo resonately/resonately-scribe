@@ -8,10 +8,8 @@ import { uploadChunkToServer } from './RecordUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Bugsnag from '@bugsnag/expo';
 import { sendNotification } from '@/hooks/useNotification';
-
-const INTERRUPTION_PAUSE_INTERVAL: number = 3000; // 3 seconds
-const MAX_DATA_WAIT_TIME: number = 3000; // 3 seconds
-const CHUNK_DURATION: number = 60 * 1000; // 60 seconds
+import { getRemoteValueAsNumber } from '@/utils/remoteConfigService';
+import { remoteConfigKeys } from '@/utils/constants';
 
 class LiveAudioManager {
   private static instance: LiveAudioManager;
@@ -30,6 +28,18 @@ class LiveAudioManager {
 
   private constructor(appointmentId?: string) {
     // this.initializeAudioStream(appointmentId);
+  }
+
+  public static get INTERRUPTION_PAUSE_INTERVAL(): number {
+    return getRemoteValueAsNumber(remoteConfigKeys.INTERRUPTION_PAUSE_INTERVAL) || 3000; 
+  }
+
+  public static get MAX_DATA_WAIT_TIME(): number {
+    return getRemoteValueAsNumber(remoteConfigKeys.MAX_DATA_WAIT_TIME) || 3000;  // Fallback value
+  }
+
+  public static get CHUNK_DURATION(): number {
+    return getRemoteValueAsNumber(remoteConfigKeys.CHUNK_DURATION) || 60 * 1000;  // Fallback value
   }
 
   public static getInstance(appointmentId?: string): LiveAudioManager {
@@ -90,7 +100,7 @@ class LiveAudioManager {
       if (this.isStreaming && this.currentChunk.length > 0 && !this.isPaused) {
         await this.handleCompleteChunk();
       }
-    }, CHUNK_DURATION);
+    }, LiveAudioManager.CHUNK_DURATION);
 
     this.startInterruptionCheckTimer();
 
@@ -101,7 +111,7 @@ class LiveAudioManager {
     this.interruptionCheckTimer = setInterval(async () => {
       if (this.isStreaming && !this.isPaused) {
         const currentTime = Date.now();
-        if (currentTime - this.lastDataReceivedTime > MAX_DATA_WAIT_TIME) {
+        if (currentTime - this.lastDataReceivedTime > LiveAudioManager.MAX_DATA_WAIT_TIME) {
           console.log('>>>> No data received for a while, pausing the recording');
           if(this.pauseCallback){
             // this.isPaused = true;
@@ -110,7 +120,7 @@ class LiveAudioManager {
           }
         }
       }
-    }, INTERRUPTION_PAUSE_INTERVAL);
+    }, LiveAudioManager.INTERRUPTION_PAUSE_INTERVAL);
   }
 
   private stopInterruptionCheckTimer(): void {
@@ -133,7 +143,7 @@ class LiveAudioManager {
       position: chunkCounter,
       isLastChunk,
       uri, 
-      startTime: startTime ?? new Date(new Date().getTime() - CHUNK_DURATION).toISOString(),
+      startTime: startTime ?? new Date(new Date().getTime() - LiveAudioManager.CHUNK_DURATION).toISOString(),
       endTime: new Date().toISOString(),
       status: CHUNK_STATUS.Created,
     }
@@ -223,7 +233,7 @@ class LiveAudioManager {
   public async stopStreaming(isComingFromPause: boolean = false): Promise<boolean> {
     try{
       console.log(">>> Inside stop Streaming isComingFromPause: ", isComingFromPause, this.isPaused, this.isStreaming);
-      if (this.isStreaming && !this.isPaused) {
+      if (this.isStreaming) {
         LiveAudioStream.stop();
         this.stopInterruptionCheckTimer();
         clearInterval(this.handleCompleteChunkInterval as NodeJS.Timeout);
