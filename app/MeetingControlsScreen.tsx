@@ -11,6 +11,7 @@ import { useAuth } from './AuthContext';
 import { playWavFile } from './utils/FeedbackSound';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Bugsnag from '@bugsnag/expo';
+import { ActivityIndicator } from 'react-native-paper';
 
 interface Appointment {
     id: string;
@@ -35,10 +36,13 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
     const [muted, setMuted] = useState(isMuted);
     const [paused, setPaused] = useState(false);
     const animatedValue = useState(new Animated.Value(0))[0];
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); 
+    const animatedEndMeetingValue = useState(new Animated.Value(1))[0]; // For the "End Appointment" button
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const [isEndRecordingRunning, setIsEndRecordingRunning] = useState(false);
     const [isPauseButtonClicked, setIsPauseButtonClicked] = useState(false);
     const { tenantName } = useAuth().tenantDetails;
+
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         const initializeRecording = async () => {
@@ -51,22 +55,22 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 }
             } catch (error) {
                 console.error('Error initializing recording:', error);
-                Bugsnag.notify({name: "Error initializing recording", message: JSON.stringify(error ?? '')});
+                Bugsnag.notify({ name: "Error initializing recording", message: JSON.stringify(error ?? '') });
             }
         };
-    
+
         if (appointment) {
             initializeRecording();
         }
-    
+
         return () => {
         };
     }, [appointment]);
-    
+
 
     useEffect(() => {
 
-        if(tenantName) {
+        if (tenantName) {
             AsyncStorage.setItem('tenantName', tenantName);
         }
 
@@ -74,7 +78,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
             if (nextAppState === 'active') {
                 console.log('App has come to the foreground!');
                 analytics().logEvent('app_state_change', { state: 'foreground' });
-    
+
                 // Check if the current screen is not already MeetingControlsScreen
                 const currentRoute = navigation.getState().routes[navigation.getState().index];
                 if (appointment && currentRoute.name !== 'MeetingControlsScreen') {
@@ -90,15 +94,15 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 analytics().logEvent('app_state_change', { state: 'background' });
             }
         };
-    
+
         const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-    
+
         return () => {
             if (appStateSubscription) {
                 appStateSubscription.remove();
             }
         };
-    }, [appointment, muted, paused, collapseSheet, navigation]);    
+    }, [appointment, muted, paused, collapseSheet, navigation]);
 
     const handleToggle = (setter: React.Dispatch<React.SetStateAction<boolean>>, value: boolean) => {
         setter(!value);
@@ -137,14 +141,14 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
             if (isPaused) { // if paused is true, then we need to pause the streaming
                 console.log(">>>> Inside handlePauseToggle calling pause streaming");
                 const isSuccessfullyPaused = await LiveAudioManager.getInstance().pauseStreaming();
-                if(isSuccessfullyPaused) {
+                if (isSuccessfullyPaused) {
                     handleToggle(setPaused, paused);
                     playWavFile(require('../assets/sample_audio.wav'));
                 }
             } else {
                 console.log(">>>> Inside handlePauseToggle calling resume streaming");
                 const isSuccessFullyResumed = LiveAudioManager.getInstance().resumeStreaming();
-                if(isSuccessFullyResumed) {
+                if (isSuccessFullyResumed) {
                     handleToggle(setPaused, paused);
                     playWavFile(require('../assets/sample_audio.wav'));
                 }
@@ -159,15 +163,25 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
             });
         } catch (err) {
             console.error('Error in handlePauseToggle:', err);
-            Bugsnag.notify({name: "Error in handlePauseToggle", message: JSON.stringify(err ?? '')});
+            Bugsnag.notify({ name: "Error in handlePauseToggle", message: JSON.stringify(err ?? '') });
             setIsPauseButtonClicked(false);
         }
     };
 
     const handleEndMeeting = async () => {
-            setIsEndRecordingRunning(true);
+        setIsLoading(true); // Show the loader
+        setIsEndRecordingRunning(true);
+
+        try {
+            // Start the animation (for example, fade out)
+            Animated.timing(animatedEndMeetingValue, {
+                toValue: 0.5, // Reduce opacity or scale (you can customize this)
+                duration: 300,
+                useNativeDriver: true,
+            }).start();
+
             const isRecordingStopped = await LiveAudioManager.getInstance().stopStreaming();
-            if(isRecordingStopped) {
+            if (isRecordingStopped) {
                 console.log('End Meeting button pressed');
                 if (collapseSheet) {
                     collapseSheet();
@@ -181,11 +195,28 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                     component: 'MeetingControlsScreen',
                     appointmentId: appointment?.id,
                     status: 'ended'
+                });
+
+                setIsLoading(false); // Hide the loader
+                setIsEndRecordingRunning(false);
+            } else {
+                Alert.alert('Please resume the recording and try again!');
+                setIsEndRecordingRunning(false);
+            }
+
+        } catch (error: any) {
+            console.error('Error ending the meeting:', error);
+            Alert.alert('An error occurred while ending the meeting. Please try again.');
+        } finally {
+            // End the animation (e.g., fade back to fully visible)
+            Animated.timing(animatedEndMeetingValue, {
+                toValue: 1, // Fully visible or scaled up
+                duration: 300,
+                useNativeDriver: true,
+            }).start(() => {
+                setIsLoading(false); // Hide the loader
+                setIsEndRecordingRunning(false);
             });
-            setIsEndRecordingRunning(false);
-        } else {
-            Alert.alert('Please resume the recording and try again!');
-            setIsEndRecordingRunning(false);
         }
     };
 
@@ -212,12 +243,20 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                         onPress={handlePauseToggle}
                         style={[styles.fab, styles.fabMutePause, paused && styles.fabToggled]}
                         color={paused ? 'red' : theme.colors.primary}
-                        disabled={isPauseButtonClicked}
+                        disabled={isPauseButtonClicked || isLoading}
                     />
                 </View>
                 <FAB
-                    icon="phone-hangup"
-                    label="End Appointment"
+                    icon={() => (
+                        <View style={{ justifyContent: 'center', alignItems: 'center' }}>
+                            {isLoading ? (
+                                <ActivityIndicator color="white" />
+                            ) : (
+                                <FontAwesome5 name="phone-slash" size={20} color="white" />
+                            )}
+                        </View>
+                    )}
+                    label={isLoading ? "Ending..." : "End Appointment"}
                     onPress={handleEndMeeting}
                     disabled={isEndRecordingRunning}
                     style={styles.endMeetingFab}

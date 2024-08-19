@@ -196,8 +196,8 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
   formData.append('chunkEndTime', new Date(endTime).toUTCString());
 
 
-  const MAX_RETRIES = 5;
-  const RETRY_DELAY = 2000; // 2 seconds
+  const MAX_RETRIES = 50;
+  const RETRY_DELAY = 3000; // 2 seconds
   let attempt = 0;
   let success = false;
 
