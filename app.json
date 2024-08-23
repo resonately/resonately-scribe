@@ -60,7 +60,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "API_BASE_URL": "https://api.myhearing.app",
+      "API_BASE_URL": "https://api.rsn8ly.xyz",
       "router": {
         "origin": false
       },

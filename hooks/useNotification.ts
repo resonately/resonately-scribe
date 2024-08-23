@@ -39,7 +39,7 @@ async function registerForPushNotificationsAsync() {
 
       try {
         // change the project ID
-        const projectId = '';
+        const projectId = 'b65b67c1-3ab7-4ebe-9482-76c8c9f064c6';
         if (!projectId) {
           throw new Error('Project ID not found');
         }
