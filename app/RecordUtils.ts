@@ -5,6 +5,7 @@ import { Audio } from 'expo-av';
 import { Recording, Chunk } from './types';
 import { store } from '@/store/store';
 import Constants from 'expo-constants';
+import uuid from 'react-native-uuid';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -354,6 +355,126 @@ export const createAppointment = async (
     return { success: false };
   }
 };
+
+export const storeRecordingStartEvent = async ({
+  tenantName,
+  appointmentId,
+}: {
+  tenantName: string,
+  appointmentId: string,
+}): Promise<{
+  success: boolean,
+  recordingId?: string,
+}> => {
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
+
+  if (!sessionCookie) {
+    console.error('Session cookie not found.');
+    return { success: false };
+  }
+
+  const headers: HeadersInit = {
+    'x-tenant-name': tenantName,
+    'Content-Type': 'application/json',
+    'Cookie': sessionCookie,
+  };
+
+  const body = JSON.stringify({
+    appointmentId,
+    localRecordingId: uuid.v4().toString(),
+    recordingStartedAt: new Date().toISOString(),
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/server/v1/start-recording`, {
+      method: 'POST',
+      headers,
+      body,
+    });
+
+    if (response.ok) {
+      const responseData = await response.json();
+      console.log('Recording start event sent successfully.', responseData.result);
+      
+      if (responseData) {
+        return { success: true, recordingId: responseData.result.insertId };
+      } else {
+        console.error('No appointment IDs returned.');
+        return { success: false };
+      }
+    } else {
+      console.error('Failed to create appointment. Status:', response.status);
+      const responseBody = await response.text();
+      console.error('Response body:', responseBody);
+      return { success: false };
+    }
+  } catch (error) {
+    console.error('Error creating appointment:', error);
+    return { success: false };
+  }
+}
+
+export const storeRecordingEndEvent = async ({
+  tenantName,
+  recordingId
+}: {
+  tenantName: string,
+  recordingId: string
+}): Promise<{
+  success: boolean,
+}> => {
+  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  if(!sessionCookie) {
+    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  }
+
+  if (!sessionCookie) {
+    console.error('Session cookie not found.');
+    return { success: false };
+  }
+
+  const headers: HeadersInit = {
+    'x-tenant-name': tenantName,
+    'Content-Type': 'application/json',
+    'Cookie': sessionCookie,
+  };
+
+  const body = JSON.stringify({
+    recordingId,
+    recordingEndTime: new Date().toISOString(),
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/server/v1/stop-recording`, {
+      method: 'POST',
+      headers,
+      body,
+    });
+
+    if (response.ok) {
+      const responseData = await response.json();
+      console.log('Recording stop event sent successfully.', responseData);
+      
+      if (responseData) {
+        return { success: true };
+      } else {
+        console.error('No recording ID found to stop recording');
+        return { success: false };
+      }
+    } else {
+      console.error('Failed to stop recording. Status:', response.status);
+      const responseBody = await response.text();
+      console.error('Response body:', responseBody);
+      return { success: false };
+    }
+  } catch (error) {
+    console.error('Error while stop recording:', error);
+    return { success: false };
+  }
+}
 
 interface RecordingInfo {
   folderPath: string;

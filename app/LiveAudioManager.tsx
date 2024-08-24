@@ -1,10 +1,9 @@
 import LiveAudioStream, { Options } from 'react-native-live-audio-stream';
 import { Buffer } from 'buffer';
 import * as FileSystem from 'expo-file-system';
-import uuid from 'react-native-uuid';
 import { Chunk, CHUNK_STATUS, Recording, RECORDING_STATUS } from './types';
 import DatabaseService from './DatabaseService';
-import { uploadChunkToServer } from './RecordUtils';
+import { storeRecordingEndEvent, uploadChunkToServer } from './RecordUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Bugsnag from '@bugsnag/expo';
 import { sendNotification } from '@/hooks/useNotification';
@@ -26,7 +25,7 @@ class LiveAudioManager {
   private currentRecordingObj: Recording | null = null;
   private tenantName: string = '';
 
-  private constructor(appointmentId?: string) {
+  private constructor(appointmentId?: string, recordingId?: string) {
     // this.initializeAudioStream(appointmentId);
   }
 
@@ -42,9 +41,9 @@ class LiveAudioManager {
     return getRemoteValueAsNumber(remoteConfigKeys.CHUNK_DURATION) || 60 * 1000;  // Fallback value
   }
 
-  public static getInstance(appointmentId?: string): LiveAudioManager {
+  public static getInstance(appointmentId?: string, recordingId?: string): LiveAudioManager {
     if (!LiveAudioManager.instance) {
-      LiveAudioManager.instance = new LiveAudioManager(appointmentId);
+      LiveAudioManager.instance = new LiveAudioManager(appointmentId, recordingId);
     }
     return LiveAudioManager.instance;
   }
@@ -57,7 +56,7 @@ class LiveAudioManager {
     this.tenantName = tenantName;
   }
 
-  private async initializeAudioStream(appointmentId?: string): Promise<void> {
+  private async initializeAudioStream(appointmentId?: string, recordingId?: string): Promise<void> {
 
     if(!appointmentId) {
       throw new Error("Appointment Id missing");
@@ -76,7 +75,7 @@ class LiveAudioManager {
     if(!this.isPaused) {
       this.appointmentId = appointmentId;
       this.currentRecordingObj = {
-        id: uuid.v4().toString(),
+        id: recordingId,
         appointmentId: appointmentId,
         startDate: new Date().toISOString(),
         endDate: null,
@@ -213,10 +212,10 @@ class LiveAudioManager {
   }
 
 
-  public startStreaming(appointmentId: string): void {
+  public startStreaming(appointmentId: string, recordingId: string): void {
     try{
       console.log(">>> Inside start streaming appointmentId: ", appointmentId);
-      this.initializeAudioStream(appointmentId);
+      this.initializeAudioStream(appointmentId, recordingId);
       LiveAudioStream.start();
       this.isStreaming = true;
       this.isPaused = false;
@@ -243,6 +242,7 @@ class LiveAudioManager {
           return false;
         } else {
           await this.handleCompleteChunk({ isLastChunk: true }); 
+          await storeRecordingEndEvent({ tenantName: this.tenantName, recordingId: this.currentRecordingObj?.id! });
           this.chunkCounter=0;
           this.appointmentId = undefined;
           this.currentRecordingObj = null;

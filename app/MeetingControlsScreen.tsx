@@ -50,7 +50,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 if (appointment) {
                     // AppointmentManager.uploadChunksPeriodically();
                     // await AppointmentManager.startRecording(appointment.id);
-                    LiveAudioManager.getInstance(appointment.id).startStreaming(appointment.id);
+                    LiveAudioManager.getInstance(appointment.id, appointment.recordingId).startStreaming(appointment.id, appointment.recordingId);
                     LiveAudioManager.getInstance().setPauseCallback(handlePauseToggle);
                 }
             } catch (error) {

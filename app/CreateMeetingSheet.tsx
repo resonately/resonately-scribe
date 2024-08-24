@@ -5,7 +5,7 @@ import { TextInput, Button, List, useTheme, Divider } from 'react-native-paper';
 import { DatePickerModal, TimePickerModal } from 'react-native-paper-dates';
 import { en, registerTranslation } from 'react-native-paper-dates';
 import { format } from 'date-fns';
-import { createAppointment } from './RecordUtils';
+import { createAppointment, storeRecordingStartEvent } from './RecordUtils';
 import { useAuth } from './AuthContext';
 import Timer from '@/components/Timer';
 import Constants from 'expo-constants';
@@ -120,22 +120,31 @@ const CreateMeetingSheet: React.FC<CreateMeetingSheetProps> = ({
         }
     }, [event]);
 
-    const handleJoinMeetingWrapper = () => {
+    const handleJoinMeetingWrapper = async () => {
         if (appointmentIdRef.current) {
-            navigation.navigate('MeetingControlsScreen', {
-                appointment: {
-                    id: appointmentIdRef.current,
-                    title: event?.title || 'New Appointment',
-                    startTime: '2024-07-07T10:00:00Z',
-                    endTime: '2024-07-07T11:00:00Z'
-                },
-                collapseSheet
-            });
-            analytics().logEvent('join_meeting', {
-                page: 'appointment',
-                element_type: 'button',
-                event_type: 'on_click',
-            });
+            try {
+                const response = await storeRecordingStartEvent({ tenantName, appointmentId: appointmentIdRef.current  });
+
+                navigation.navigate('MeetingControlsScreen', {
+                    appointment: {
+                        id: appointmentIdRef.current,
+                        recordingId: response.recordingId,
+                        title: event?.title || 'New Appointment',
+                        startTime: '2024-07-07T10:00:00Z',
+                        endTime: '2024-07-07T11:00:00Z'
+                    },
+                    collapseSheet
+                });
+                analytics().logEvent('join_meeting', {
+                    page: 'appointment',
+                    element_type: 'button',
+                    event_type: 'on_click',
+                });
+
+            } catch (err) {
+                Alert.alert('Cannot start meeting', JSON.stringify(err));
+            }
+            
         } else {
             Alert.alert('Appointment ID missing.');
             analytics().logEvent('join_meeting_failure', {
@@ -197,7 +206,7 @@ const CreateMeetingSheet: React.FC<CreateMeetingSheetProps> = ({
 
                 // Set meeting controls before joining the meeting
                 if (startNow) {
-                    handleJoinMeetingWrapper();
+                    await handleJoinMeetingWrapper();
                 }
             } else {
                 throw new Error('Failed to create appointment');
