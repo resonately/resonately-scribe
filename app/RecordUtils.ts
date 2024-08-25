@@ -6,6 +6,8 @@ import { Recording, Chunk } from './types';
 import { store } from '@/store/store';
 import Constants from 'expo-constants';
 import uuid from 'react-native-uuid';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Bugsnag from '@bugsnag/expo';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -157,8 +159,6 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
 export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, tenantName: string): Promise<boolean> => {
   const { position, startTime, endTime, uri } = chunk;
 
-  console.log(">>>> Inside uploadchunktoserver: ", chunk, recording, tenantName);
-
   const fileExists = await FileSystem.getInfoAsync(uri);
 
   if (!fileExists.exists) {
@@ -171,8 +171,13 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
     sessionCookie = await SecureStore.getItemAsync('sessionCookie');
   }
 
+  let tenant = tenantName;
+  if(!tenant) {
+    tenant = await AsyncStorage.getItem('tenantName') ?? '';
+  }
+
   const headers: HeadersInit = {
-    'x-tenant-name': tenantName,
+    'x-tenant-name': tenant,
   };
 
   if (sessionCookie) {
@@ -185,9 +190,6 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
     name: uri.split('/').pop(), // Assuming the file name can be derived from the URI
     type: 'audio/wav' // Change the type to the appropriate MIME type if different
   } as any);
-
-  console.log(">>> uploading recording:", recording);
-  console.log(">>> uploading chunk:", chunk);
 
   formData.append('appointmentId', recording.appointmentId);
   formData.append('localRecordingId', recording.id!);
@@ -376,8 +378,13 @@ export const storeRecordingStartEvent = async ({
     return { success: false };
   }
 
+  let tenant = tenantName;
+  if(!tenant) {
+    tenant = await AsyncStorage.getItem('tenantName') ?? '';
+  }
+
   const headers: HeadersInit = {
-    'x-tenant-name': tenantName,
+    'x-tenant-name': tenant,
     'Content-Type': 'application/json',
     'Cookie': sessionCookie,
   };
@@ -436,8 +443,13 @@ export const storeRecordingEndEvent = async ({
     return { success: false };
   }
 
+  let tenant = tenantName;
+  if(!tenant) {
+    tenant = await AsyncStorage.getItem('tenantName') ?? '';
+  }
+
   const headers: HeadersInit = {
-    'x-tenant-name': tenantName,
+    'x-tenant-name': tenant,
     'Content-Type': 'application/json',
     'Cookie': sessionCookie,
   };
@@ -447,31 +459,59 @@ export const storeRecordingEndEvent = async ({
     recordingEndTime: new Date().toISOString(),
   });
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/server/v1/stop-recording`, {
-      method: 'POST',
-      headers,
-      body,
-    });
+  const MAX_RETRIES = 50;
+  const RETRY_DELAY = 3000; // 2 seconds
+  let attempt = 0;
+  let success = false;
 
-    if (response.ok) {
-      const responseData = await response.json();
-      console.log('Recording stop event sent successfully.', responseData);
-      
-      if (responseData) {
-        return { success: true };
+  try {
+
+    while (attempt < MAX_RETRIES && !success) {
+
+      const response = await fetch(`${API_BASE_URL}/server/v1/stop-recording`, {
+        method: 'POST',
+        headers,
+        body,
+      });
+
+      if (response.status === 200) {
+        const responseData = await response.json();
+        console.log('Recording stop event sent successfully.', responseData);
+        success = true;
+        if (responseData) {
+          return { success: true };
+        }
+      } else if (response.status === 403) {
+        console.log('403 Forbidden: Check session cookie and user permissions.');
+        // Additional logging can be added here to understand the issue better
+        const responseBody = await response.text();
+        Bugsnag.notify(new Error(`403 Forbidden: Check session cookie and user permissions. ${recordingId}`));
+        console.log('Response body:', responseBody);
+        return { success: false };
+      } else if (response.status >= 500 || !navigator.onLine) {
+        console.log(JSON.stringify(response));
+        console.log('Server error or no network. Retrying...');
+        Bugsnag.notify(new Error(`Server error or no network. Retrying... ${recordingId}`));
       } else {
-        console.error('No recording ID found to stop recording');
+        const responseBody = await response.text();
+        console.error('Response body:', responseBody);
+        Bugsnag.notify(new Error(`Failed to stop recording. ${recordingId}`));
         return { success: false };
       }
-    } else {
-      console.error('Failed to stop recording. Status:', response.status);
-      const responseBody = await response.text();
-      console.error('Response body:', responseBody);
-      return { success: false };
+
+      attempt++;
+      if (!success) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+      }
+
+      if(attempt === MAX_RETRIES - 1){
+        return { success: false };
+      }
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Error while stop recording:', error);
+    Bugsnag.notify(new Error(`Error while stop recording: ${recordingId}`));
     return { success: false };
   }
 }

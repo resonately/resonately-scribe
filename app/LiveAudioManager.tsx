@@ -198,8 +198,10 @@ class LiveAudioManager {
           await this.updateLocalDB(newChunkObj, this.chunkCounter, isLastChunk);
           this.chunkCounter++;
           if(isLastChunk) {
+            console.log(">>>> calling upload chunk to server ",1);
             await this.uploadChunksToServer(this.tenantName, false);
           } else {
+            console.log(">>>> calling upload chunk to server ",2);
             this.uploadChunksToServer(this.tenantName, false);
           }
         }
@@ -264,7 +266,7 @@ class LiveAudioManager {
 
   public async pauseStreaming(internal: boolean = false) {
     console.log(">>>> Inside pause streaming internal", internal, this.isPaused);
-    if (this.isStreaming && !this.isPaused) { 
+    if (this.isStreaming && !this.isPaused) {
       // if(internal && this.pauseCallback) {
       //   console.log(">>>> Inside pause streaming calling pause callback");
       //   this.pauseCallback(true);
@@ -290,7 +292,7 @@ class LiveAudioManager {
     if (this.isStreaming && this.isPaused) {
       this.chunkStartTime = new Date().toISOString(); // Reset the chunk start time
       this.lastDataReceivedTime = Date.now();
-      this.startStreaming(this.appointmentId ?? '');
+      this.startStreaming(this.appointmentId ?? '', this.currentRecordingObj?.id ?? '');
       return true;
     } else if (!this.isStreaming) {
       console.log('>>>Cannot resume, audio streaming is not active');
@@ -412,6 +414,7 @@ class LiveAudioManager {
         for (const chunk of recording.chunks) {
           if(chunk.status === CHUNK_STATUS.Created) {
               // upload the chunk
+              console.log(">>>> uploading the chunk: ", chunk, recording);
               const success = await uploadChunkToServer(chunk, recording, tenantName);
               if(success) {
                 chunk.status = CHUNK_STATUS.Uploaded;
@@ -475,7 +478,7 @@ class LiveAudioManager {
         }
 
         // Call uploadChunksToServer with cleanup set to true
-        console.log(">>> Uploading chunks to server 1");
+        console.log(">>> Uploading chunks to server 3");
         await this.uploadChunksToServer(tenantName, true);
 
     } catch (error) {

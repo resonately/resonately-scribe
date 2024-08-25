@@ -198,7 +198,7 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                 setIsLoading(false); // Hide the loader
                 setIsEndRecordingRunning(false);
             } else {
-                Alert.alert('Please resume the recording and try again!');
+                Alert.alert('Please try again!');
                 setIsEndRecordingRunning(false);
             }
 
