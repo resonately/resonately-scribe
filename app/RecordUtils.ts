@@ -8,6 +8,8 @@ import Constants from 'expo-constants';
 import uuid from 'react-native-uuid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Bugsnag from '@bugsnag/expo';
+import { getRemoteValueAsNumber } from '@/utils/remoteConfigService';
+import { retryWithExponentialBackoff } from '@/utils/apiUtils';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -198,49 +200,41 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
   formData.append('chunkStartTime', new Date(startTime).toUTCString());
   formData.append('chunkEndTime', new Date(endTime).toUTCString());
 
+  const apiCall = async () => {
+    const response = await fetch(`${API_BASE_URL}/server/v1/chunk`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
 
-  const MAX_RETRIES = 50;
-  const RETRY_DELAY = 3000; // 2 seconds
-  let attempt = 0;
-  let success = false;
-
-  while (attempt < MAX_RETRIES && !success) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/server/v1/chunk`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-
-      if (response.status === 200) {
-        console.log('Chunk uploaded successfully.');
-        success = true;
-        return true;
-      } else if (response.status === 403) {
-        console.log('403 Forbidden: Check session cookie and user permissions.');
-        // Additional logging can be added here to understand the issue better
-        const responseBody = await response.text();
-        console.log('Response body:', responseBody);
-        return false;
-      } else if (response.status >= 500 || !navigator.onLine) {
-        console.log(JSON.stringify(response));
-        console.log('Server error or no network. Retrying...');
-      } else {
-        console.log('Failed to upload chunk. Status:', response.status);
-        const responseBody = await response.text();
-        console.log('Response body:', responseBody);
-      }
-    } catch (error) {
-      console.error('Error uploading chunk:', error);
+    if (response.status === 200) {
+      console.log('Chunk uploaded successfully.');
+      return true;
+    } else if (response.status === 403) {
+      console.log('403 Forbidden: Check session cookie and user permissions.');
+      const responseBody = await response.text();
+      console.log('Response body:', responseBody);
+      return false;
+    } else if (response.status >= 500 || !navigator.onLine) {
+      throw new Error('Server error or no network. Retrying...');
+    } else {
+      console.log('Failed to upload chunk. Status:', response.status);
+      const responseBody = await response.text();
+      console.log('Response body:', responseBody);
+      throw new Error(responseBody);
     }
+  };
 
-    attempt++;
-    if (!success) {
-      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-    }
-  }
+  const API_RETRIES_MAX = getRemoteValueAsNumber('api_retries_count') || 10;
 
-  return false;
+  const result = await retryWithExponentialBackoff(apiCall, {
+    maxRetries: API_RETRIES_MAX,
+    initialDelay: 2000, // Start with a 2-second delay
+    maxDelay: 30000, // Optional: Cap the delay at 30 seconds
+  });
+
+  return result !== null;
+
 };
 
 export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string): Promise<any> => {
@@ -426,15 +420,13 @@ export const storeRecordingStartEvent = async ({
 
 export const storeRecordingEndEvent = async ({
   tenantName,
-  recordingId
+  recordingId,
 }: {
-  tenantName: string,
-  recordingId: string
-}): Promise<{
-  success: boolean,
-}> => {
+  tenantName: string;
+  recordingId: string;
+}): Promise<{ success: boolean }> => {
   let sessionCookie = store.getState()?.secureStore?.sessionCookie;
-  if(!sessionCookie) {
+  if (!sessionCookie) {
     sessionCookie = await SecureStore.getItemAsync('sessionCookie');
   }
 
@@ -444,8 +436,8 @@ export const storeRecordingEndEvent = async ({
   }
 
   let tenant = tenantName;
-  if(!tenant) {
-    tenant = await AsyncStorage.getItem('tenantName') ?? '';
+  if (!tenant) {
+    tenant = (await AsyncStorage.getItem('tenantName')) ?? '';
   }
 
   const headers: HeadersInit = {
@@ -459,62 +451,54 @@ export const storeRecordingEndEvent = async ({
     recordingEndTime: new Date().toISOString(),
   });
 
-  const MAX_RETRIES = 50;
-  const RETRY_DELAY = 3000; // 2 seconds
-  let attempt = 0;
-  let success = false;
+  const apiCall = async () => {
+    const response = await fetch(`${API_BASE_URL}/server/v1/stop-recording`, {
+      method: 'POST',
+      headers,
+      body,
+    });
+
+    if (response.status === 200) {
+      const responseData = await response.json();
+      console.log('Recording stop event sent successfully.', responseData);
+      if (responseData) {
+        return { success: true };
+      }
+    } else if (response.status === 403) {
+      console.log('403 Forbidden: Check session cookie and user permissions.');
+      const responseBody = await response.text();
+      Bugsnag.notify(new Error(`403 Forbidden: Check session cookie and user permissions. ${recordingId}`));
+      console.log('Response body:', responseBody);
+      return { success: false };
+    } else if (response.status >= 500 || !navigator.onLine) {
+      console.log('Server error or no network. Retrying...');
+      Bugsnag.notify(new Error(`Server error or no network. Retrying... ${recordingId}`));
+      throw new Error('Server error or no network. Retrying...');
+    } else {
+      const responseBody = await response.text();
+      console.error('Failed to stop recording. Response body:', responseBody);
+      Bugsnag.notify(new Error(`Failed to stop recording. ${recordingId}`));
+      return { success: false };
+    }
+  };
+
+  const API_RETRIES_MAX = getRemoteValueAsNumber('api_retries_count') || 10;
 
   try {
+    const result = await retryWithExponentialBackoff(apiCall, {
+      maxRetries: API_RETRIES_MAX,
+      initialDelay: 2000, // Start with a 2-second delay
+      maxDelay: 30000, // Optional: Cap the delay at 30 seconds
+    });
 
-    while (attempt < MAX_RETRIES && !success) {
-
-      const response = await fetch(`${API_BASE_URL}/server/v1/stop-recording`, {
-        method: 'POST',
-        headers,
-        body,
-      });
-
-      if (response.status === 200) {
-        const responseData = await response.json();
-        console.log('Recording stop event sent successfully.', responseData);
-        success = true;
-        if (responseData) {
-          return { success: true };
-        }
-      } else if (response.status === 403) {
-        console.log('403 Forbidden: Check session cookie and user permissions.');
-        // Additional logging can be added here to understand the issue better
-        const responseBody = await response.text();
-        Bugsnag.notify(new Error(`403 Forbidden: Check session cookie and user permissions. ${recordingId}`));
-        console.log('Response body:', responseBody);
-        return { success: false };
-      } else if (response.status >= 500 || !navigator.onLine) {
-        console.log(JSON.stringify(response));
-        console.log('Server error or no network. Retrying...');
-        Bugsnag.notify(new Error(`Server error or no network. Retrying... ${recordingId}`));
-      } else {
-        const responseBody = await response.text();
-        console.error('Response body:', responseBody);
-        Bugsnag.notify(new Error(`Failed to stop recording. ${recordingId}`));
-        return { success: false };
-      }
-
-      attempt++;
-      if (!success) {
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-      }
-
-      if(attempt === MAX_RETRIES - 1){
-        return { success: false };
-      }
-    }
-  }
-  catch (error) {
-    console.error('Error while stop recording:', error);
-    Bugsnag.notify(new Error(`Error while stop recording: ${recordingId}`));
+    return result || { success: false };
+  } catch (error) {
+    console.error('Error while stopping recording:', error);
+    Bugsnag.notify(new Error(`Error while stopping recording: ${recordingId}`));
     return { success: false };
   }
-}
+};
+
 
 interface RecordingInfo {
   folderPath: string;
