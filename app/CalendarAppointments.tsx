@@ -18,6 +18,8 @@ interface CalendarAppointmentsProps {
 const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelectedEvent, setIsSheetOpen, setRefreshAppointments }) => {
   const theme = useTheme();
   const { tenantName } = useAuth().tenantDetails;
+  const logout  = useAuth().logout;
+  
   const [events, setEvents] = useState<any>([{}]);
   const [initialScrollDone, setInitialScrollDone] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -88,7 +90,7 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
   const loadAppointments = useCallback(async () => {
     try {
       const { startDate, endDate } = calculateDateRange(selectedDate);
-      const fetchedAppointments = await fetchAppointments(tenantName, startDate, endDate);
+      const fetchedAppointments = await fetchAppointments(tenantName, startDate, endDate, logout);
       const mappedAppointments = mapAppointmentsToTimeline(fetchedAppointments);
       setEvents(JSON.parse(JSON.stringify(mappedAppointments)));
 
@@ -151,13 +153,13 @@ const CalendarAppointments: React.FC<CalendarAppointmentsProps> = ({ setSelected
       if (!events[date]) {
         events[date] = [];
       }
-
+      
       events[date].push({
         ...appointment, // Include all properties from the appointment object
         start: localStart,
         end: localEnd,
-        title: appointment.appointment_title || 'No title',
-        summary: `${appointment.patient_name} - ${appointment.appointment_type}`,
+        title: `${appointment.patient_name?appointment.patient_name:"New Appointment"} ${appointment.patient_dob? "-" + new Date(appointment.patient_dob).toLocaleDateString():""}`,
+        summary: `${appointment.patient_name}`,
       });
     });
     return events;

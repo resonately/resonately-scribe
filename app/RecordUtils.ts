@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Bugsnag from '@bugsnag/expo';
 import { getRemoteValueAsNumber } from '@/utils/remoteConfigService';
 import { retryWithExponentialBackoff } from '@/utils/apiUtils';
+import { useAuth } from './AuthContext';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -40,13 +41,13 @@ export const storeRecordingLocally = async (recordingUri: string, recordingId: s
 };
 
 export const deleteAppointment = async (appointmentId: number, tenantName: string): Promise<boolean> => {
-  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
+  let authToken = store.getState()?.secureStore?.sessionCookie;
   // const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
-  if(!sessionCookie) {
-    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  if(!authToken) {
+    authToken = await SecureStore.getItemAsync('auth_token');
   }
 
-  if (!sessionCookie) {
+  if (!authToken) {
     console.error('Session cookie not found.');
     return false;
   }
@@ -54,7 +55,7 @@ export const deleteAppointment = async (appointmentId: number, tenantName: strin
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
     'Content-Type': 'application/json',
-    'Cookie': sessionCookie,
+    'Authorization': authToken,
   };
 
   try {
@@ -94,9 +95,9 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
     return true;
   }
 
-  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
-  if(!sessionCookie) {
-    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let authToken = store.getState()?.secureStore?.sessionCookie;
+  if(!authToken) {
+    authToken = await SecureStore.getItemAsync('auth_token');
   }
 
   const headers: HeadersInit = {
@@ -104,8 +105,8 @@ export const uploadRecording = async (chunk: Chunk, recordingId: string, tenantN
     'x-time-zone': Intl.DateTimeFormat().resolvedOptions().timeZone
   };
 
-  if (sessionCookie) {
-    headers['Cookie'] = sessionCookie;
+  if (authToken) {
+    headers['Authorization'] = authToken;
   }
 
   const formData = new FormData();
@@ -168,9 +169,9 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
     return true;
   }
 
-  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
-  if(!sessionCookie) {
-    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let authToken = store.getState()?.secureStore?.sessionCookie;
+  if(!authToken) {
+    authToken = await SecureStore.getItemAsync('auth_token');
   }
 
   let tenant = tenantName;
@@ -182,8 +183,8 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
     'x-tenant-name': tenant,
   };
 
-  if (sessionCookie) {
-    headers['Cookie'] = sessionCookie;
+  if (authToken) {
+    headers['Authorization'] = authToken;
   }
 
   const formData = new FormData();
@@ -199,6 +200,7 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
   formData.append('position', position.toString());
   formData.append('chunkStartTime', new Date(startTime).toUTCString());
   formData.append('chunkEndTime', new Date(endTime).toUTCString());
+  formData.append('recordingId', recording.id!);
 
   const apiCall = async () => {
     const response = await fetch(`${API_BASE_URL}/server/v1/chunk`, {
@@ -237,10 +239,12 @@ export const uploadChunkToServer = async (chunk: Chunk, recording: Recording, te
 
 };
 
-export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string): Promise<any> => {
-  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
-  if(!sessionCookie) {
-    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+export const fetchAppointments = async (tenantName: string, startDate: string, endDate: string, 
+  logout: () => void // Add logout as a parameter
+): Promise<any> => {
+  let authToken = store.getState()?.secureStore?.sessionCookie;
+  if(!authToken) {
+    authToken = await SecureStore.getItemAsync('auth_token');
   }
 
   // console.log('loadAppointments');
@@ -249,7 +253,7 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
   // console.log(endDate);
   // console.log(API_BASE_URL);
 
-  if (!sessionCookie) {
+  if (!authToken) {
     console.error('Session cookie not found.');
     return null;
   }
@@ -257,10 +261,9 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
     'Content-Type': 'application/json',
-    'Cookie': sessionCookie,
+    // 'Authorization': authToken + "1",
+    'Authorization': authToken,
   };
-
-  // console.log(headers);
 
   try {
     const response = await fetch(`${API_BASE_URL}/server/v1/appointments?startDate=${startDate}&endDate=${endDate}`, {
@@ -274,10 +277,14 @@ export const fetchAppointments = async (tenantName: string, startDate: string, e
       // console.log(API_BASE_URL);
       return data.appointments;
     } else {
-      console.error('Failed to fetch appointments. Status:', response.status);
+      if (response.status == 403) {
+        logout();
+      } else {
+        console.error('Failed to fetch appointments. Status:', response.status);
       const responseBody = await response.text();
       // console.error('Response body:', responseBody);
       return null;
+      }
     }
   } catch (error) {
     console.error('Error fetching appointments:', error);
@@ -295,12 +302,12 @@ export const createAppointment = async (
   notes: string,
   tenantName: string
 ): Promise<{ success: boolean, appointmentId?: string }> => {
-  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
-  if(!sessionCookie) {
-    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let authToken = store.getState()?.secureStore?.sessionCookie;
+  if(!authToken) {
+    authToken = await SecureStore.getItemAsync('auth_token');
   }
 
-  if (!sessionCookie) {
+  if (!authToken) {
     console.error('Session cookie not found.');
     return { success: false };
   }
@@ -308,7 +315,7 @@ export const createAppointment = async (
   const headers: HeadersInit = {
     'x-tenant-name': tenantName,
     'Content-Type': 'application/json',
-    'Cookie': sessionCookie,
+    'Authorization': authToken,
   };
 
   const body = JSON.stringify({
@@ -334,7 +341,10 @@ export const createAppointment = async (
       const responseData = await response.json();
       console.log('Appointment created successfully.');
       
+      console.log(JSON.stringify(responseData));
+
       if (responseData.appointmentIds && responseData.appointmentIds.length > 0) {
+        console.log(JSON.stringify(responseData));
         return { success: true, appointmentId: responseData.appointmentIds[0] };
       } else {
         console.error('No appointment IDs returned.');
@@ -362,12 +372,12 @@ export const storeRecordingStartEvent = async ({
   success: boolean,
   recordingId?: string,
 }> => {
-  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
-  if(!sessionCookie) {
-    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let authToken = store.getState()?.secureStore?.sessionCookie;
+  if(!authToken) {
+    authToken = await SecureStore.getItemAsync('auth_token');
   }
 
-  if (!sessionCookie) {
+  if (!authToken) {
     console.error('Session cookie not found.');
     return { success: false };
   }
@@ -380,7 +390,7 @@ export const storeRecordingStartEvent = async ({
   const headers: HeadersInit = {
     'x-tenant-name': tenant,
     'Content-Type': 'application/json',
-    'Cookie': sessionCookie,
+    'Authorization': authToken,
   };
 
   const body = JSON.stringify({
@@ -425,12 +435,12 @@ export const storeRecordingEndEvent = async ({
   tenantName: string;
   recordingId: string;
 }): Promise<{ success: boolean }> => {
-  let sessionCookie = store.getState()?.secureStore?.sessionCookie;
-  if (!sessionCookie) {
-    sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+  let authToken = store.getState()?.secureStore?.sessionCookie;
+  if (!authToken) {
+    authToken = await SecureStore.getItemAsync('auth_token');
   }
 
-  if (!sessionCookie) {
+  if (!authToken) {
     console.error('Session cookie not found.');
     return { success: false };
   }
@@ -443,7 +453,7 @@ export const storeRecordingEndEvent = async ({
   const headers: HeadersInit = {
     'x-tenant-name': tenant,
     'Content-Type': 'application/json',
-    'Cookie': sessionCookie,
+    'Authorization': authToken,
   };
 
   const body = JSON.stringify({

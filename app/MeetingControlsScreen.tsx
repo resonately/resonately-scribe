@@ -256,7 +256,8 @@ const MeetingControlsScreen: React.FC<MeetingControlsScreenProps> = () => {
                     )}
                     label={isLoading ? "Ending..." : "End Appointment"}
                     onPress={handleEndMeeting}
-                    disabled={isEndRecordingRunning}
+                    disabled={isEndRecordingRunning || paused}
+                    visible={!paused}
                     style={styles.endMeetingFab}
                     color="white"
                     uppercase={false}

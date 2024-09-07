@@ -60,7 +60,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "API_BASE_URL": "https://api.rsn8ly.xyz",
+      "API_BASE_URL": "http://localhost:3001",
       "router": {
         "origin": false
       },

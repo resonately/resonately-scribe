@@ -63,8 +63,8 @@ const CreateMeetingSheet: React.FC<CreateMeetingSheetProps> = ({
     const [providerName, setProviderName] = useState('');
     const [startDate, setStartDate] = useState<Date | undefined>(new Date());
     const [startTime, setStartTime] = useState<{ hours: number, minutes: number }>({ hours: new Date().getHours(), minutes: new Date().getMinutes() });
-    const [endDate, setEndDate] = useState<Date | undefined>(new Date(Date.now() + 60 * 60 * 1000));
-    const [endTime, setEndTime] = useState<{ hours: number, minutes: number }>({ hours: new Date(Date.now() + 60 * 60 * 1000).getHours(), minutes: new Date(Date.now() + 60 * 60 * 1000).getMinutes() });
+    const [endDate, setEndDate] = useState<Date | undefined>(new Date(Date.now() + 15 * 60 * 1000));
+    const [endTime, setEndTime] = useState<{ hours: number, minutes: number }>({ hours: new Date(Date.now() + 15 * 60 * 1000).getHours(), minutes: new Date(Date.now() + 15 * 60 * 1000).getMinutes() });
     const [showStartDatePicker, setShowStartDatePicker] = useState(false);
     const [showStartTimePicker, setShowStartTimePicker] = useState(false);
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -84,9 +84,9 @@ const CreateMeetingSheet: React.FC<CreateMeetingSheetProps> = ({
             });
             if (!event) {
                 setStartDate(new Date());
-                setEndDate(new Date(Date.now() + 60 * 60 * 1000));
+                setEndDate(new Date(Date.now() + 15 * 60 * 1000));
                 setStartTime({ hours: new Date().getHours(), minutes: new Date().getMinutes() });
-                setEndTime({ hours: new Date(Date.now() + 60 * 60 * 1000).getHours(), minutes: new Date(Date.now() + 60 * 60 * 1000).getMinutes() });
+                setEndTime({ hours: new Date(Date.now() + 15 * 60 * 1000).getHours(), minutes: new Date(Date.now() + 15 * 60 * 1000).getMinutes() });
             }
         } else {
             bottomSheetRef.current?.close();
@@ -113,9 +113,9 @@ const CreateMeetingSheet: React.FC<CreateMeetingSheetProps> = ({
             setAppointmentType('');
             setPatientName('');
             setStartDate(new Date());
-            setEndDate(new Date(Date.now() + 60 * 60 * 1000));
+            setEndDate(new Date(Date.now() + 15 * 60 * 1000));
             setStartTime({ hours: new Date().getHours(), minutes: new Date().getMinutes() });
-            setEndTime({ hours: new Date(Date.now() + 60 * 60 * 1000).getHours(), minutes: new Date(Date.now() + 60 * 60 * 1000).getMinutes() });
+            setEndTime({ hours: new Date(Date.now() + 15 * 60 * 1000).getHours(), minutes: new Date(Date.now() + 15 * 60 * 1000).getMinutes() });
             setCurrentAppointmentId(null);
         }
     }, [event]);

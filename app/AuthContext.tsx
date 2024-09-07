@@ -18,7 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TENANT_DETAILS_KEY = 'tenantDetails';
 const AUTH_STATE_KEY = 'isAuthenticated';
-const SESSION_COOKIE_KEY = 'sessionCookie';
+const AUTH_TOKEN_KEY = 'auth_token';
 const EMAIL_KEY = 'email';
 const PASSWORD_KEY = 'password';
 
@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Load tenant details and authentication state when the app starts
     const loadAuthState = async () => {
       const storedAuthState = await SecureStore.getItemAsync(AUTH_STATE_KEY);
-      const sessionCookie = await SecureStore.getItemAsync(SESSION_COOKIE_KEY);
+      const sessionCookie = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
       const savedTenantDetails = await AsyncStorage.getItem(TENANT_DETAILS_KEY);
 
       if (savedTenantDetails !== null) {
@@ -69,13 +69,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const loginWithCredentials = async (email: string, password: string, tenantDetails: any) => {
-    const response = await fetch(`${API_BASE_URL}/oms/v1/api/method/login`, {
+    const response = await fetch(`${API_BASE_URL}/server/v1/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-tenant-name': tenantDetails?.tenantName, // Include tenant name in headers
+        // 'x-tenant-name': tenantDetails?.tenantName, // Include tenant name in headers
       },
-      body: JSON.stringify({ usr: email, pwd: password }),
+      // body: JSON.stringify({ usr: email, pwd: password }),
+      body: JSON.stringify({
+        username : email,
+        password: password,
+      })
     });
 
     // console.log('Tenant Details:', tenantDetails);
@@ -83,12 +87,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (response.ok) {
       const data = await response.json();
-      const setCookieHeader = response.headers.get('set-cookie');
-      if (setCookieHeader) {
-        await SecureStore.setItemAsync(SESSION_COOKIE_KEY, setCookieHeader);
+      console.log(`Login Successful: ${JSON.stringify(data)}`);
+      
+      const token = data.token;
+      
+      console.log(`Token: ${token}`);
+      
+      if (token || token == undefined) {
+        await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
         await SecureStore.setItemAsync(AUTH_STATE_KEY, 'true');
+        setIsAuthenticated(true);
+      } else {
+        console.log(`No token found`);
       }
-      setIsAuthenticated(true);
     } else {
       throw new Error('Login failed');
     }
@@ -122,7 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     setIsAuthenticated(false);
     await SecureStore.deleteItemAsync(AUTH_STATE_KEY);
-    await SecureStore.deleteItemAsync(SESSION_COOKIE_KEY);
+    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
     await SecureStore.deleteItemAsync(EMAIL_KEY);
     await SecureStore.deleteItemAsync(PASSWORD_KEY);
   };
