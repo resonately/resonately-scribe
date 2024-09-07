@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, ReactNode, useEffect } from
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { store } from '@/store/store';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.rsn8ly.xyz';
 
@@ -130,12 +131,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const logout = async () => {
-    setIsAuthenticated(false);
-    await SecureStore.deleteItemAsync(AUTH_STATE_KEY);
-    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(EMAIL_KEY);
-    await SecureStore.deleteItemAsync(PASSWORD_KEY);
+  const logout = async () => { 
+    try {
+      let authToken = store.getState()?.secureStore?.sessionCookie;
+      // const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
+      if(!authToken) {
+        authToken = await SecureStore.getItemAsync('auth_token');
+      }
+
+      if (!authToken) {
+        console.error('Session cookie not found.');
+        return;
+      }
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Authorization': authToken,
+      };
+      const response = await fetch(`${API_BASE_URL}/server/v1/logout`, {
+        method: 'POST',
+        headers,
+      });
+  
+      if (response.ok) {
+        console.log('Appointment deleted successfully.');
+      } else {
+        console.error('Failed to delete appointment. Status:', response.status);
+        const responseBody = await response.text();
+        console.error('Response body:', responseBody);
+      }
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+    } finally {
+      setIsAuthenticated(false);
+      await SecureStore.deleteItemAsync(AUTH_STATE_KEY);
+      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(EMAIL_KEY);
+      await SecureStore.deleteItemAsync(PASSWORD_KEY);
+    }
   };
 
   const setTenantDetails = async (details: any) => {
