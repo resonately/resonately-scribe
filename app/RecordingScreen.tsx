@@ -434,7 +434,7 @@ const RecordingScreen = (): JSX.Element => {
   };
 
   const stopRecordingOnServer = async (recordingId: string, endDate: string) => {
-    const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+    const sessionCookie = await SecureStore.getItemAsync('auth_token');
     const userEmail = await SecureStore.getItemAsync('sessionUserEmail');
 
     const headers: HeadersInit = {

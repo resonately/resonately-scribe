@@ -44,7 +44,7 @@ const LogoutChecker: React.FC<LogoutCheckerProps> = ({ isRecordingInProgress }) 
   const handleLogout = async () => {
 
     // Clear any stored session data
-    await SecureStore.deleteItemAsync('sessionCookie');
+    await SecureStore.deleteItemAsync('auth_token');
     await SecureStore.deleteItemAsync('sessionExpiry');
     logout();
     // Navigate to the login screen

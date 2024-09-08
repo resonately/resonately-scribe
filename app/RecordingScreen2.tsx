@@ -134,7 +134,7 @@ const RecordingScreen: React.FC<Props> = ({ navigation }): JSX.Element => {
   useEffect(() => {
 
     const getAndSetSecureStoreData = async () => {
-      const sessionCookie = await SecureStore.getItemAsync('sessionCookie');
+      const sessionCookie = await SecureStore.getItemAsync('auth_token');
       
       if(sessionCookie) {
         dispatch(setSessionCookie(sessionCookie));

@@ -64,12 +64,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return true;
       } catch (error) {
         console.error('Automatic login failed:', error);
-        throw Error('Automatic login failed');
+        // throw Error('Automatic login failed');
       }
     }
   };
 
   const loginWithCredentials = async (email: string, password: string, tenantDetails: any) => {
+    console.log(`API Base URL: ${API_BASE_URL}`);
+    
     const response = await fetch(`${API_BASE_URL}/server/v1/login`, {
       method: 'POST',
       headers: {
@@ -140,7 +142,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (!authToken) {
-        console.error('Session cookie not found.');
+        console.error('Auth token not found.');
         return;
       }
 

@@ -32,8 +32,8 @@ const ProfileScreen = () => {
       console.log('User signed out');
       
       // Clear stored session data
-      await SecureStore.deleteItemAsync('sessionCookie');
-      await SecureStore.deleteItemAsync('sessionExpiry');
+      await SecureStore.deleteItemAsync('auth_token');
+      // await SecureStore.deleteItemAsync('sessionExpiry');
       await SecureStore.deleteItemAsync('userEmail');
       await SecureStore.deleteItemAsync('password');
       
